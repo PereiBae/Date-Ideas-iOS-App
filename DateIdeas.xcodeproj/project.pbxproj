@@ -1,0 +1,615 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		A00000000000000000000001 /* DateIdeasApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000101 /* DateIdeasApp.swift */; };
+		A00000000000000000000002 /* DateIdea.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000102 /* DateIdea.swift */; };
+		A00000000000000000000003 /* ImportDraft.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000103 /* ImportDraft.swift */; };
+		A00000000000000000000004 /* DateIdeaStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000104 /* DateIdeaStore.swift */; };
+		A00000000000000000000005 /* IdeaStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000105 /* IdeaStorage.swift */; };
+		A00000000000000000000006 /* PostExtractionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000106 /* PostExtractionService.swift */; };
+		A00000000000000000000007 /* SampleData.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000107 /* SampleData.swift */; };
+		A00000000000000000000008 /* SharedImportQueue.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000108 /* SharedImportQueue.swift */; };
+		A00000000000000000000009 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000109 /* RootView.swift */; };
+		A0000000000000000000000A /* IdeaListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000010A /* IdeaListView.swift */; };
+		A0000000000000000000000B /* IdeaDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000010B /* IdeaDetailView.swift */; };
+		A0000000000000000000000C /* AddVisitView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000010C /* AddVisitView.swift */; };
+		A0000000000000000000000D /* ImportReviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000010D /* ImportReviewView.swift */; };
+		A00000000000000000000030 /* WorkbooksView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000130 /* WorkbooksView.swift */; };
+		A0000000000000000000000E /* ShareViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000010E /* ShareViewController.swift */; };
+		A0000000000000000000000F /* SharedImportQueue.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000108 /* SharedImportQueue.swift */; };
+		A00000000000000000000010 /* DateIdeasShareExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = A00000000000000000000112 /* DateIdeasShareExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		A0000000000000000000001A /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000114 /* GoogleService-Info.plist */; };
+		A0000000000000000000001B /* FirebaseCore in Frameworks */ = {isa = PBXBuildFile; productRef = A00000000000000000000601 /* FirebaseCore */; };
+		A0000000000000000000001C /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = A00000000000000000000602 /* FirebaseAuth */; };
+		A0000000000000000000001D /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = A00000000000000000000603 /* FirebaseFirestore */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		A00000000000000000000011 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = A00000000000000000000200 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = A00000000000000000000301;
+			remoteInfo = DateIdeasShareExtension;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		A00000000000000000000012 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				A00000000000000000000010 /* DateIdeasShareExtension.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		A00000000000000000000100 /* DateIdeas.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = DateIdeas.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A00000000000000000000101 /* DateIdeasApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DateIdeasApp.swift; sourceTree = "<group>"; };
+		A00000000000000000000102 /* DateIdea.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DateIdea.swift; sourceTree = "<group>"; };
+		A00000000000000000000103 /* ImportDraft.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportDraft.swift; sourceTree = "<group>"; };
+		A00000000000000000000104 /* DateIdeaStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DateIdeaStore.swift; sourceTree = "<group>"; };
+		A00000000000000000000105 /* IdeaStorage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IdeaStorage.swift; sourceTree = "<group>"; };
+		A00000000000000000000106 /* PostExtractionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PostExtractionService.swift; sourceTree = "<group>"; };
+		A00000000000000000000107 /* SampleData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SampleData.swift; sourceTree = "<group>"; };
+		A00000000000000000000108 /* SharedImportQueue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedImportQueue.swift; sourceTree = "<group>"; };
+		A00000000000000000000109 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
+		A0000000000000000000010A /* IdeaListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IdeaListView.swift; sourceTree = "<group>"; };
+		A0000000000000000000010B /* IdeaDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IdeaDetailView.swift; sourceTree = "<group>"; };
+		A0000000000000000000010C /* AddVisitView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddVisitView.swift; sourceTree = "<group>"; };
+		A0000000000000000000010D /* ImportReviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportReviewView.swift; sourceTree = "<group>"; };
+		A00000000000000000000130 /* WorkbooksView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkbooksView.swift; sourceTree = "<group>"; };
+		A0000000000000000000010E /* ShareViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareViewController.swift; sourceTree = "<group>"; };
+		A0000000000000000000010F /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		A00000000000000000000110 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		A00000000000000000000111 /* DateIdeasApp.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = DateIdeasApp.entitlements; sourceTree = "<group>"; };
+		A00000000000000000000112 /* DateIdeasShareExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = DateIdeasShareExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		A00000000000000000000113 /* DateIdeasShareExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = DateIdeasShareExtension.entitlements; sourceTree = "<group>"; };
+		A00000000000000000000114 /* GoogleService-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		A00000000000000000000013 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A0000000000000000000001C /* FirebaseAuth in Frameworks */,
+				A0000000000000000000001B /* FirebaseCore in Frameworks */,
+				A0000000000000000000001D /* FirebaseFirestore in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A00000000000000000000014 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		A00000000000000000000120 = {
+			isa = PBXGroup;
+			children = (
+				A00000000000000000000121 /* DateIdeasApp */,
+				A00000000000000000000125 /* DateIdeasShareExtension */,
+				A00000000000000000000126 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		A00000000000000000000121 /* DateIdeasApp */ = {
+			isa = PBXGroup;
+			children = (
+				A00000000000000000000101 /* DateIdeasApp.swift */,
+				A00000000000000000000122 /* Models */,
+				A00000000000000000000123 /* Services */,
+				A00000000000000000000124 /* Views */,
+				A0000000000000000000010F /* Info.plist */,
+				A00000000000000000000114 /* GoogleService-Info.plist */,
+				A00000000000000000000111 /* DateIdeasApp.entitlements */,
+			);
+			path = DateIdeasApp;
+			sourceTree = "<group>";
+		};
+		A00000000000000000000122 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				A00000000000000000000102 /* DateIdea.swift */,
+				A00000000000000000000103 /* ImportDraft.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		A00000000000000000000123 /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				A00000000000000000000104 /* DateIdeaStore.swift */,
+				A00000000000000000000105 /* IdeaStorage.swift */,
+				A00000000000000000000106 /* PostExtractionService.swift */,
+				A00000000000000000000107 /* SampleData.swift */,
+				A00000000000000000000108 /* SharedImportQueue.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+		A00000000000000000000124 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				A00000000000000000000109 /* RootView.swift */,
+				A0000000000000000000010A /* IdeaListView.swift */,
+				A0000000000000000000010B /* IdeaDetailView.swift */,
+				A0000000000000000000010C /* AddVisitView.swift */,
+				A0000000000000000000010D /* ImportReviewView.swift */,
+				A00000000000000000000130 /* WorkbooksView.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		A00000000000000000000125 /* DateIdeasShareExtension */ = {
+			isa = PBXGroup;
+			children = (
+				A0000000000000000000010E /* ShareViewController.swift */,
+				A00000000000000000000110 /* Info.plist */,
+				A00000000000000000000113 /* DateIdeasShareExtension.entitlements */,
+			);
+			path = DateIdeasShareExtension;
+			sourceTree = "<group>";
+		};
+		A00000000000000000000126 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				A00000000000000000000100 /* DateIdeas.app */,
+				A00000000000000000000112 /* DateIdeasShareExtension.appex */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		A00000000000000000000300 /* DateIdeas */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A00000000000000000000400 /* Build configuration list for PBXNativeTarget "DateIdeas" */;
+			buildPhases = (
+				A00000000000000000000015 /* Sources */,
+				A00000000000000000000013 /* Frameworks */,
+				A00000000000000000000016 /* Resources */,
+				A00000000000000000000012 /* Embed Foundation Extensions */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				A00000000000000000000017 /* PBXTargetDependency */,
+			);
+			name = DateIdeas;
+			packageProductDependencies = (
+				A00000000000000000000601 /* FirebaseCore */,
+				A00000000000000000000602 /* FirebaseAuth */,
+				A00000000000000000000603 /* FirebaseFirestore */,
+			);
+			productName = DateIdeas;
+			productReference = A00000000000000000000100 /* DateIdeas.app */;
+			productType = "com.apple.product-type.application";
+		};
+		A00000000000000000000301 /* DateIdeasShareExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A00000000000000000000401 /* Build configuration list for PBXNativeTarget "DateIdeasShareExtension" */;
+			buildPhases = (
+				A00000000000000000000018 /* Sources */,
+				A00000000000000000000014 /* Frameworks */,
+				A00000000000000000000019 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = DateIdeasShareExtension;
+			productName = DateIdeasShareExtension;
+			productReference = A00000000000000000000112 /* DateIdeasShareExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		A00000000000000000000200 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1600;
+				LastUpgradeCheck = 2660;
+				TargetAttributes = {
+					A00000000000000000000300 = {
+						CreatedOnToolsVersion = 16.0;
+						SystemCapabilities = {
+							com.apple.ApplicationGroups.iOS = {
+								enabled = 1;
+							};
+							com.apple.SignInWithApple = {
+								enabled = 1;
+							};
+						};
+					};
+					A00000000000000000000301 = {
+						CreatedOnToolsVersion = 16.0;
+						SystemCapabilities = {
+							com.apple.ApplicationGroups.iOS = {
+								enabled = 1;
+							};
+						};
+					};
+				};
+			};
+			buildConfigurationList = A00000000000000000000402 /* Build configuration list for PBXProject "DateIdeas" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = A00000000000000000000120;
+			productRefGroup = A00000000000000000000126 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			packageReferences = (
+				A00000000000000000000600 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */,
+			);
+			targets = (
+				A00000000000000000000300 /* DateIdeas */,
+				A00000000000000000000301 /* DateIdeasShareExtension */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		A00000000000000000000016 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A0000000000000000000001A /* GoogleService-Info.plist in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A00000000000000000000019 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		A00000000000000000000015 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A00000000000000000000001 /* DateIdeasApp.swift in Sources */,
+				A00000000000000000000002 /* DateIdea.swift in Sources */,
+				A00000000000000000000003 /* ImportDraft.swift in Sources */,
+				A00000000000000000000004 /* DateIdeaStore.swift in Sources */,
+				A00000000000000000000005 /* IdeaStorage.swift in Sources */,
+				A00000000000000000000006 /* PostExtractionService.swift in Sources */,
+				A00000000000000000000007 /* SampleData.swift in Sources */,
+				A00000000000000000000008 /* SharedImportQueue.swift in Sources */,
+				A00000000000000000000009 /* RootView.swift in Sources */,
+				A0000000000000000000000A /* IdeaListView.swift in Sources */,
+				A0000000000000000000000B /* IdeaDetailView.swift in Sources */,
+				A0000000000000000000000C /* AddVisitView.swift in Sources */,
+				A0000000000000000000000D /* ImportReviewView.swift in Sources */,
+				A00000000000000000000030 /* WorkbooksView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A00000000000000000000018 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A0000000000000000000000E /* ShareViewController.swift in Sources */,
+				A0000000000000000000000F /* SharedImportQueue.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		A00000000000000000000017 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = A00000000000000000000301 /* DateIdeasShareExtension */;
+			targetProxy = A00000000000000000000011 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		A00000000000000000000500 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.1;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		A00000000000000000000501 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.1;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		A00000000000000000000502 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = DateIdeasApp/DateIdeasApp.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_ASSET_PATHS = "";
+				DEVELOPMENT_TEAM = 977BU9A9H8;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = DateIdeasApp/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.brandonpereira.dateideas;
+				PRODUCT_NAME = DateIdeas;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		A00000000000000000000503 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = DateIdeasApp/DateIdeasApp.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_ASSET_PATHS = "";
+				DEVELOPMENT_TEAM = 977BU9A9H8;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = DateIdeasApp/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.brandonpereira.dateideas;
+				PRODUCT_NAME = DateIdeas;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		A00000000000000000000504 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = DateIdeasShareExtension/DateIdeasShareExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 977BU9A9H8;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = DateIdeasShareExtension/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.brandonpereira.dateideas.share;
+				PRODUCT_NAME = DateIdeasShareExtension;
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		A00000000000000000000505 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = DateIdeasShareExtension/DateIdeasShareExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 977BU9A9H8;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = DateIdeasShareExtension/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.brandonpereira.dateideas.share;
+				PRODUCT_NAME = DateIdeasShareExtension;
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		A00000000000000000000400 /* Build configuration list for PBXNativeTarget "DateIdeas" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A00000000000000000000502 /* Debug */,
+				A00000000000000000000503 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A00000000000000000000401 /* Build configuration list for PBXNativeTarget "DateIdeasShareExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A00000000000000000000504 /* Debug */,
+				A00000000000000000000505 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A00000000000000000000402 /* Build configuration list for PBXProject "DateIdeas" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A00000000000000000000500 /* Debug */,
+				A00000000000000000000501 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		A00000000000000000000600 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/firebase/firebase-ios-sdk.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 12.15.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		A00000000000000000000601 /* FirebaseCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A00000000000000000000600 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseCore;
+		};
+		A00000000000000000000602 /* FirebaseAuth */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A00000000000000000000600 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseAuth;
+		};
+		A00000000000000000000603 /* FirebaseFirestore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A00000000000000000000600 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseFirestore;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = A00000000000000000000200 /* Project object */;
+}
