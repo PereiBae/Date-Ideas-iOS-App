@@ -13,6 +13,20 @@ enum IdeaCategory: String, CaseIterable, Codable, Identifiable {
 
     var id: String { rawValue }
 
+    var systemImage: String {
+        switch self {
+        case .restaurant: "fork.knife"
+        case .cafe: "cup.and.saucer"
+        case .hawker: "takeoutbag.and.cup.and.straw"
+        case .bar: "wineglass"
+        case .dessertShop: "birthday.cake"
+        case .activity: "figure.play"
+        case .event: "calendar"
+        case .shop: "bag"
+        case .photobooth: "camera"
+        }
+    }
+
     init(from decoder: Decoder) throws {
         let container = try decoder.singleValueContainer()
         let value = try container.decode(String.self)

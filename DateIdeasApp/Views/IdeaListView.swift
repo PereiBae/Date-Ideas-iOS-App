@@ -3,99 +3,45 @@ import UIKit
 
 struct IdeaListView: View {
     @EnvironmentObject private var store: DateIdeaStore
+    @State private var showingFilters = false
 
     var body: some View {
         let visibleIdeas = store.filteredIdeas
 
         List {
             Section {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
-                        FilterChip(title: "All types", isSelected: store.selectedCategory == nil) {
-                            store.selectedCategory = nil
-                        }
-
-                        ForEach(IdeaCategory.allCases) { category in
-                            FilterChip(title: category.rawValue, isSelected: store.selectedCategory == category) {
-                                store.selectedCategory = category
-                            }
-                        }
-                    }
-                    .padding(.vertical, 2)
-                }
-
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
-                        FilterChip(title: "Any cuisine", isSelected: store.selectedCuisineTag == nil) {
-                            store.selectedCuisineTag = nil
-                        }
-
-                        ForEach(store.availableCuisineTags) { tag in
-                            FilterChip(title: tag.rawValue, isSelected: store.selectedCuisineTag == tag) {
-                                store.selectedCuisineTag = tag
-                            }
-                        }
-                    }
-                    .padding(.vertical, 2)
-                }
-
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
-                        FilterChip(title: "Any food", isSelected: store.selectedFoodTag == nil) {
-                            store.selectedFoodTag = nil
-                        }
-
-                        ForEach(store.availableFoodTags) { tag in
-                            FilterChip(title: tag.rawValue, isSelected: store.selectedFoodTag == tag) {
-                                store.selectedFoodTag = tag
-                            }
-                        }
-                    }
-                    .padding(.vertical, 2)
-                }
-
-                Toggle("Visited only", isOn: $store.showingVisitedOnly)
-
-                if store.showingVisitedOnly || store.selectedReviewMetric != nil {
-                    VStack(alignment: .leading, spacing: 10) {
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 8) {
-                                FilterChip(title: "Any rating", isSelected: store.selectedReviewMetric == nil) {
-                                    store.selectedReviewMetric = nil
-                                }
-
-                                ForEach(ReviewMetric.allCases) { metric in
-                                    FilterChip(title: metric.rawValue, isSelected: store.selectedReviewMetric == metric) {
-                                        store.selectedReviewMetric = metric
-                                        store.showingVisitedOnly = true
-                                    }
-                                }
-                            }
-                            .padding(.vertical, 2)
-                        }
-
-                        if store.selectedReviewMetric != nil {
-                            Stepper(
-                                "Minimum \(store.minimumReviewScore.formatted(.number.precision(.fractionLength(1))))",
-                                value: $store.minimumReviewScore,
-                                in: 1...5,
-                                step: 0.5
-                            )
-                        }
-                    }
-                }
+                filterBar
+                    .listRowInsets(EdgeInsets(top: 6, leading: 12, bottom: 6, trailing: 0))
+                    .listRowBackground(Color.clear)
             }
 
             Section {
-                ForEach(visibleIdeas) { idea in
-                    NavigationLink(value: idea.id) {
-                        IdeaRowView(idea: idea)
+                if visibleIdeas.isEmpty && store.filter.isActive {
+                    ContentUnavailableView {
+                        Label("No matches", systemImage: "line.3.horizontal.decrease")
+                    } description: {
+                        Text("No saved places match these filters.")
+                    } actions: {
+                        Button("Clear filters") {
+                            store.filter = IdeaFilter()
+                        }
+                    }
+                } else {
+                    ForEach(visibleIdeas) { idea in
+                        NavigationLink(value: idea.id) {
+                            IdeaRowView(idea: idea)
+                        }
+                    }
+                    .onDelete { offsets in
+                        store.deleteIdeas(at: offsets, from: visibleIdeas)
                     }
                 }
-                .onDelete { offsets in
-                    store.deleteIdeas(at: offsets, from: visibleIdeas)
-                }
             }
+        }
+        .sheet(isPresented: $showingFilters) {
+            FilterSheetView(filter: store.filter, sortOrder: store.sortOrder)
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
         }
         .navigationDestination(for: UUID.self) { ideaID in
             if let idea = store.ideas.first(where: { $0.id == ideaID }) {
@@ -104,6 +50,112 @@ struct IdeaListView: View {
                 ContentUnavailableView("Date idea deleted", systemImage: "trash")
             }
         }
+    }
+
+    private var filterBar: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                Button {
+                    showingFilters = true
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "line.3.horizontal.decrease")
+                            .font(.subheadline.weight(.semibold))
+
+                        Text("Filters")
+                            .font(.subheadline.weight(.semibold))
+
+                        if store.filter.activeCount > 0 {
+                            Text("\(store.filter.activeCount)")
+                                .font(.caption2.weight(.bold))
+                                .foregroundStyle(Color.accentColor)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(.white, in: Capsule())
+                        }
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 7)
+                    .background(Color.accentColor, in: Capsule())
+                    .foregroundStyle(.white)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(store.filter.activeCount > 0 ? "Filters, \(store.filter.activeCount) active" : "Filters")
+
+                if store.sortOrder != .dateAdded {
+                    ActiveFilterChip(title: store.sortOrder.rawValue, systemImage: store.sortOrder.systemImage) {
+                        store.sortOrder = .dateAdded
+                    }
+                }
+
+                if let category = store.filter.category {
+                    ActiveFilterChip(title: category.rawValue) {
+                        store.filter.category = nil
+                    }
+                }
+
+                if let cuisine = store.filter.cuisineTag {
+                    ActiveFilterChip(title: cuisine.rawValue) {
+                        store.filter.cuisineTag = nil
+                    }
+                }
+
+                if let food = store.filter.foodTag {
+                    ActiveFilterChip(title: food.rawValue) {
+                        store.filter.foodTag = nil
+                    }
+                }
+
+                if store.filter.visitedOnly {
+                    ActiveFilterChip(title: visitedChipTitle) {
+                        store.filter.visitedOnly = false
+                        store.filter.reviewMetric = nil
+                    }
+                }
+            }
+            .padding(.trailing, 12)
+        }
+    }
+
+    private var visitedChipTitle: String {
+        if let metric = store.filter.reviewMetric {
+            return "Visited · \(metric.rawValue) ≥ \(store.filter.minimumReviewScore.formatted(.number.precision(.fractionLength(1))))"
+        }
+        return "Visited"
+    }
+}
+
+struct ActiveFilterChip: View {
+    let title: String
+    var systemImage: String?
+    let onRemove: () -> Void
+
+    var body: some View {
+        Button(action: onRemove) {
+            HStack(spacing: 5) {
+                if let systemImage {
+                    Image(systemName: systemImage)
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(.secondary)
+                }
+
+                Text(title)
+                    .font(.subheadline.weight(.medium))
+                    .lineLimit(1)
+
+                Image(systemName: "xmark")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 7)
+            .background {
+                Capsule().fill(Color(.secondarySystemGroupedBackground))
+                Capsule().strokeBorder(Color(.separator), lineWidth: 0.5)
+            }
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Remove filter: \(title)")
     }
 }
 

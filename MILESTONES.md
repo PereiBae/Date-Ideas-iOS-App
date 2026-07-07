@@ -51,6 +51,21 @@ large titles, WCAG AA contrast throughout, Dynamic Type everywhere.
   cuisine/food tag chips (`FilterChip` in a new `FlowLayout`) replace the 43 toggle
   rows, prominent glass "Save to <workbook>" action pinned to the bottom.
 
+## Post-redesign: Filter revamp ✅
+- The 3–4 stacked horizontal chip rows on Saved are replaced by a single compact bar:
+  an accent "Filters" pill with an active-count badge plus removable chips for each
+  active filter and non-default sort; empty filtered results get a
+  ContentUnavailableView with "Clear filters".
+- `FilterSheetView` (new file, wired into pbxproj as A...031/A...131): Sort by chips
+  (Date added / A to Z / Near me with location icon), "Type of place" icon grid
+  (`IdeaCategory.systemImage`), cuisine/food chips limited to tags present in saved
+  ideas, Visited card with rating metric + minimum stepper, Clear + "Show N places"
+  glass action bar. Sheet edits a draft `IdeaFilter`; Apply commits to the store.
+- Store: filter state consolidated into `IdeaFilter` (Equatable, `matches(_:)`,
+  `activeCount`) + `IdeaSortOrder`; Near me uses `UserLocationProvider`
+  (CLLocationManager, when-in-use; plist string already existed for the map) with
+  ideas lacking coordinates sorted last and a denied-permission footnote in the sheet.
+
 ## M6 — Polish ✅
 - Save toast: after an import saves, the tab accessory shows "Saved to <workbook>"
   (`SaveToastAccessory`) with a View action that opens the idea detail in a sheet,

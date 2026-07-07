@@ -119,13 +119,10 @@ struct RootView: View {
             clipboardHasLink = true
         } else if pasteboard.hasStrings {
             let observedChangeCount = pasteboard.changeCount
-            pasteboard.detectPatterns(for: [.probableWebURL]) { result in
-                DispatchQueue.main.async {
-                    guard UIPasteboard.general.changeCount == observedChangeCount else { return }
-                    if case .success(let patterns) = result {
-                        clipboardHasLink = patterns.contains(.probableWebURL)
-                    }
-                }
+            Task { @MainActor in
+                let patterns = try? await pasteboard.detectedPatterns(for: [\.probableWebURL])
+                guard UIPasteboard.general.changeCount == observedChangeCount else { return }
+                clipboardHasLink = patterns?.contains(\.probableWebURL) == true
             }
         } else {
             clipboardHasLink = false

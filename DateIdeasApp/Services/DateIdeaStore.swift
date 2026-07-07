@@ -1,3 +1,4 @@
+import CoreLocation
 import Foundation
 #if canImport(FirebaseCore)
 import FirebaseCore
@@ -15,6 +16,107 @@ struct SaveConfirmation: Identifiable, Equatable {
     let ideaTitle: String
 }
 
+enum IdeaSortOrder: String, CaseIterable, Identifiable {
+    case dateAdded = "Date added"
+    case alphabetical = "A to Z"
+    case nearMe = "Near me"
+
+    var id: String { rawValue }
+
+    var systemImage: String {
+        switch self {
+        case .dateAdded: "clock"
+        case .alphabetical: "textformat"
+        case .nearMe: "location"
+        }
+    }
+}
+
+struct IdeaFilter: Equatable {
+    var category: IdeaCategory?
+    var cuisineTag: CuisineTag?
+    var foodTag: FoodTag?
+    var visitedOnly = false
+    var reviewMetric: ReviewMetric?
+    var minimumReviewScore = 4.0
+
+    var activeCount: Int {
+        [category != nil, cuisineTag != nil, foodTag != nil, visitedOnly, reviewMetric != nil]
+            .filter { $0 }
+            .count
+    }
+
+    var isActive: Bool {
+        activeCount > 0
+    }
+
+    func matches(_ idea: DateIdea) -> Bool {
+        let categoryMatches = category.map { idea.category == $0 } ?? true
+        let cuisineMatches = cuisineTag.map { idea.cuisineTags.contains($0) } ?? true
+        let foodMatches = foodTag.map { idea.foodTags.contains($0) } ?? true
+        let visitMatches = visitedOnly ? idea.hasVisited : true
+        let reviewMatches = reviewMetric.map { metric in
+            guard let review = idea.latestReview else { return false }
+            return review.score(for: metric) >= minimumReviewScore
+        } ?? true
+        return categoryMatches && cuisineMatches && foodMatches && visitMatches && reviewMatches
+    }
+}
+
+@MainActor
+final class UserLocationProvider: NSObject, CLLocationManagerDelegate {
+    var onUpdate: ((CLLocation?) -> Void)?
+    var onDenied: (() -> Void)?
+    private let manager = CLLocationManager()
+
+    override init() {
+        super.init()
+        manager.delegate = self
+        manager.desiredAccuracy = kCLLocationAccuracyHundredMeters
+    }
+
+    func requestLocation() {
+        switch manager.authorizationStatus {
+        case .notDetermined:
+            manager.requestWhenInUseAuthorization()
+        case .denied, .restricted:
+            onDenied?()
+        default:
+            manager.requestLocation()
+        }
+    }
+
+    nonisolated func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+        Task { @MainActor in
+            switch self.authorizationStatus {
+            case .authorizedWhenInUse, .authorizedAlways:
+                self.manager.requestLocation()
+            case .denied, .restricted:
+                self.onDenied?()
+            default:
+                break
+            }
+        }
+    }
+
+    nonisolated func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+        let location = locations.last
+        Task { @MainActor in
+            self.onUpdate?(location)
+        }
+    }
+
+    nonisolated func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
+        Task { @MainActor in
+            self.onUpdate?(nil)
+        }
+    }
+
+    private var authorizationStatus: CLAuthorizationStatus {
+        manager.authorizationStatus
+    }
+}
+
 @MainActor
 final class DateIdeaStore: ObservableObject {
     @Published private(set) var ideas: [DateIdea]
@@ -22,18 +124,17 @@ final class DateIdeaStore: ObservableObject {
     @Published private(set) var importStage: ImportStage?
     @Published var saveConfirmation: SaveConfirmation?
     private var importGeneration = 0
-    @Published var selectedCategory: IdeaCategory?
-    @Published var selectedCuisineTag: CuisineTag?
-    @Published var selectedFoodTag: FoodTag?
-    @Published var showingVisitedOnly = false {
+    @Published var filter = IdeaFilter()
+    @Published var sortOrder: IdeaSortOrder = .dateAdded {
         didSet {
-            if !showingVisitedOnly {
-                selectedReviewMetric = nil
+            if sortOrder == .nearMe {
+                requestLocationForSorting()
             }
         }
     }
-    @Published var selectedReviewMetric: ReviewMetric?
-    @Published var minimumReviewScore = 4.0
+    @Published private(set) var userLocation: CLLocation?
+    @Published private(set) var locationDenied = false
+    private lazy var locationProvider = UserLocationProvider()
 
     private let storage: IdeaStorage
     private let extractor: PostExtractionServicing
@@ -48,18 +149,40 @@ final class DateIdeaStore: ObservableObject {
     }
 
     var filteredIdeas: [DateIdea] {
-        ideas.filter { idea in
-            let categoryMatches = selectedCategory.map { idea.category == $0 } ?? true
-            let cuisineMatches = selectedCuisineTag.map { idea.cuisineTags.contains($0) } ?? true
-            let foodMatches = selectedFoodTag.map { idea.foodTags.contains($0) } ?? true
-            let visitMatches = showingVisitedOnly ? idea.hasVisited : true
-            let reviewMatches = selectedReviewMetric.map { metric in
-                guard let review = idea.latestReview else { return false }
-                return review.score(for: metric) >= minimumReviewScore
-            } ?? true
-            return categoryMatches && cuisineMatches && foodMatches && visitMatches && reviewMatches
+        sortedIdeas(ideas.filter(filter.matches))
+    }
+
+    func requestLocationForSorting() {
+        locationDenied = false
+        locationProvider.onUpdate = { [weak self] location in
+            self?.userLocation = location
         }
-        .sorted { $0.updatedAt > $1.updatedAt }
+        locationProvider.onDenied = { [weak self] in
+            self?.locationDenied = true
+        }
+        locationProvider.requestLocation()
+    }
+
+    private func sortedIdeas(_ list: [DateIdea]) -> [DateIdea] {
+        switch sortOrder {
+        case .dateAdded:
+            return list.sorted { $0.updatedAt > $1.updatedAt }
+        case .alphabetical:
+            return list.sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
+        case .nearMe:
+            guard let userLocation else {
+                return list.sorted { $0.updatedAt > $1.updatedAt }
+            }
+            return list.sorted { distance(of: $0, from: userLocation) < distance(of: $1, from: userLocation) }
+        }
+    }
+
+    // Ideas without coordinates sort to the end.
+    private func distance(of idea: DateIdea, from location: CLLocation) -> Double {
+        guard let latitude = idea.location.latitude, let longitude = idea.location.longitude else {
+            return .greatestFiniteMagnitude
+        }
+        return location.distance(from: CLLocation(latitude: latitude, longitude: longitude))
     }
 
     var dealAlertIdeas: [DateIdea] {
