@@ -5,7 +5,8 @@ import FirebaseCore
 #endif
 
 enum Theme {
-    static let accent = Color.indigo
+    // Rosé — deep enough for WCAG AA white text on filled chips and buttons.
+    static let accent = Color(red: 199 / 255, green: 64 / 255, blue: 105 / 255)
 
     // Reserved exclusively for Apple Intelligence provenance UI.
     static let aiGradient = LinearGradient(

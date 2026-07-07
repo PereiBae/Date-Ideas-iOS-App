@@ -926,6 +926,8 @@ struct PlacesMapView: View {
     @State private var position: MapCameraPosition = .automatic
     @State private var visitFilter = MapVisitFilter.all
     @State private var selectedCategory: IdeaCategory?
+    @State private var selectedIdeaID: UUID?
+    @State private var showingCategoryPicker = false
 
     private var mappedIdeas: [DateIdea] {
         store.ideas.filter { idea in
@@ -936,14 +938,35 @@ struct PlacesMapView: View {
         }
     }
 
+    private var selectedIdea: DateIdea? {
+        mappedIdeas.first { $0.id == selectedIdeaID }
+    }
+
+    // Only offer types that actually have a mappable saved place.
+    private var availableCategories: [IdeaCategory] {
+        IdeaCategory.allCases.filter { category in
+            store.ideas.contains { idea in
+                idea.category == category && idea.location.latitude != nil && idea.location.longitude != nil
+            }
+        }
+    }
+
+    private var isFilterActive: Bool {
+        visitFilter != .all || selectedCategory != nil
+    }
+
     var body: some View {
         NavigationStack {
             Map(position: $position) {
                 ForEach(mappedIdeas) { idea in
                     if let coordinate = idea.mapCoordinate {
                         Annotation(idea.title, coordinate: coordinate) {
-                            NavigationLink(value: idea.id) {
-                                WorkbookMapPin(isVisited: idea.hasVisited)
+                            Button {
+                                withAnimation(.smooth(duration: 0.25)) {
+                                    selectedIdeaID = selectedIdeaID == idea.id ? nil : idea.id
+                                }
+                            } label: {
+                                WorkbookMapPin(isVisited: idea.hasVisited, isSelected: idea.id == selectedIdeaID)
                             }
                             .buttonStyle(.plain)
                         }
@@ -955,14 +978,63 @@ struct PlacesMapView: View {
                 MapUserLocationButton()
                 MapCompass()
             }
-            .safeAreaInset(edge: .top) {
-                MapFilterBar(visitFilter: $visitFilter, selectedCategory: $selectedCategory)
-                    .padding(.horizontal)
-                    .padding(.vertical, 8)
-                    .background(.regularMaterial)
+            .overlay {
+                if showingCategoryPicker {
+                    Color.black.opacity(0.15)
+                        .ignoresSafeArea()
+                        .onTapGesture {
+                            withAnimation(.smooth(duration: 0.25)) {
+                                showingCategoryPicker = false
+                            }
+                        }
+                        .accessibilityLabel("Close type filter")
+                }
             }
-            .navigationTitle("Map")
-            .navigationBarTitleDisplayMode(.inline)
+            .overlay(alignment: .topTrailing) {
+                if showingCategoryPicker {
+                    VStack(alignment: .trailing, spacing: 8) {
+                        categoryRow(title: "All types", systemImage: "mappin.and.ellipse", isSelected: selectedCategory == nil) {
+                            selectCategory(nil)
+                        }
+
+                        ForEach(availableCategories) { category in
+                            categoryRow(title: category.rawValue, systemImage: category.systemImage, isSelected: selectedCategory == category) {
+                                selectCategory(category)
+                            }
+                        }
+                    }
+                    .padding(.trailing)
+                    .padding(.top, 10)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+                }
+            }
+            .overlay(alignment: .bottomLeading) {
+                if isFilterActive && selectedIdea == nil && !showingCategoryPicker {
+                    Text(countText)
+                        .font(.footnote.weight(.medium))
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 7)
+                        .glassEffect(.regular, in: .capsule)
+                        .padding(.leading)
+                        .padding(.bottom, 10)
+                }
+            }
+            .overlay(alignment: .bottom) {
+                if let idea = selectedIdea, !showingCategoryPicker {
+                    MapPreviewCard(idea: idea, distanceText: distanceText(for: idea)) {
+                        withAnimation(.smooth(duration: 0.25)) {
+                            selectedIdeaID = nil
+                        }
+                    }
+                    .padding(.horizontal)
+                    .padding(.bottom, 10)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
+            }
+            .safeAreaInset(edge: .top, spacing: 0) {
+                headerBar
+            }
+            .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(for: UUID.self) { ideaID in
                 if let idea = store.ideas.first(where: { $0.id == ideaID }) {
                     IdeaDetailView(idea: idea)
@@ -970,7 +1042,150 @@ struct PlacesMapView: View {
                     ContentUnavailableView("Date idea deleted", systemImage: "trash")
                 }
             }
+            .onChange(of: visitFilter) { dropSelectionIfHidden() }
+            .onChange(of: selectedCategory) { dropSelectionIfHidden() }
+            .task {
+                store.refreshUserLocationIfAuthorized()
+            }
         }
+    }
+
+    // Frosted bar the map slides underneath. Fixed height: resizing the map
+    // (e.g. expanding this bar) churns MapKit's Metal drawable and crashes,
+    // so the type rows float over the map as an overlay instead.
+    private var headerBar: some View {
+        HStack(alignment: .center, spacing: 10) {
+            visitFilterControl
+
+            Spacer(minLength: 10)
+
+            categoryFilterButton
+        }
+        .padding(.horizontal)
+        .padding(.top, 8)
+        .padding(.bottom, 10)
+        .frame(maxWidth: .infinity)
+        .background(.ultraThinMaterial)
+        .overlay(alignment: .bottom) {
+            Divider()
+        }
+    }
+
+    private var visitFilterControl: some View {
+        HStack(spacing: 6) {
+            ForEach(MapVisitFilter.allCases) { filter in
+                Group {
+                    if visitFilter == filter {
+                        Button(filter.rawValue) {
+                            visitFilter = filter
+                        }
+                        .buttonStyle(.glassProminent)
+                    } else {
+                        Button(filter.rawValue) {
+                            visitFilter = filter
+                        }
+                        .buttonStyle(.glass)
+                    }
+                }
+                .accessibilityAddTraits(visitFilter == filter ? .isSelected : [])
+            }
+        }
+        .font(.subheadline.weight(.medium))
+        .buttonBorderShape(.capsule)
+        .sensoryFeedback(.selection, trigger: visitFilter)
+    }
+
+    private var categoryFilterButton: some View {
+        Group {
+            if showingCategoryPicker {
+                Button {
+                    toggleCategoryPicker()
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.body.weight(.semibold))
+                        .frame(width: 24, height: 24)
+                }
+                .buttonStyle(.glassProminent)
+            } else {
+                Button {
+                    toggleCategoryPicker()
+                } label: {
+                    Image(systemName: "line.3.horizontal.decrease")
+                        .font(.body.weight(.semibold))
+                        .frame(width: 24, height: 24)
+                }
+                .buttonStyle(.glass)
+            }
+        }
+        .buttonBorderShape(.circle)
+        .overlay(alignment: .topTrailing) {
+            if selectedCategory != nil && !showingCategoryPicker {
+                Circle()
+                    .fill(Color.accentColor)
+                    .frame(width: 10, height: 10)
+                    .overlay {
+                        Circle().strokeBorder(.white, lineWidth: 1.5)
+                    }
+            }
+        }
+        .accessibilityLabel(selectedCategory.map { "Filter by type, \($0.rawValue) selected" } ?? "Filter by type")
+    }
+
+    private func categoryRow(title: String, systemImage: String, isSelected: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 8) {
+                Text(title)
+                    .font(.footnote.weight(isSelected ? .semibold : .medium))
+                    .lineLimit(1)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(isSelected ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.regularMaterial), in: Capsule())
+                    .foregroundStyle(isSelected ? Color.white : Color.primary)
+
+                Image(systemName: systemImage)
+                    .font(.subheadline.weight(.medium))
+                    .frame(width: 36, height: 36)
+                    .background(isSelected ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.regularMaterial), in: Circle())
+                    .foregroundStyle(isSelected ? Color.white : Color.primary)
+            }
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+
+    private var countText: String {
+        mappedIdeas.count == 1 ? "1 place shown" : "\(mappedIdeas.count) places shown"
+    }
+
+    private func toggleCategoryPicker() {
+        withAnimation(.smooth(duration: 0.25)) {
+            showingCategoryPicker.toggle()
+        }
+    }
+
+    private func selectCategory(_ category: IdeaCategory?) {
+        withAnimation(.smooth(duration: 0.25)) {
+            selectedCategory = category
+            showingCategoryPicker = false
+        }
+    }
+
+    private func dropSelectionIfHidden() {
+        if let selectedIdeaID, !mappedIdeas.contains(where: { $0.id == selectedIdeaID }) {
+            withAnimation(.smooth(duration: 0.2)) {
+                self.selectedIdeaID = nil
+            }
+        }
+    }
+
+    private func distanceText(for idea: DateIdea) -> String? {
+        guard let userLocation = store.userLocation,
+              let latitude = idea.location.latitude,
+              let longitude = idea.location.longitude else { return nil }
+
+        let meters = userLocation.distance(from: CLLocation(latitude: latitude, longitude: longitude))
+        return Measurement(value: meters, unit: UnitLength.meters)
+            .formatted(.measurement(width: .abbreviated, usage: .road))
     }
 }
 
@@ -993,62 +1208,102 @@ enum MapVisitFilter: String, CaseIterable, Identifiable {
     }
 }
 
-struct MapFilterBar: View {
-    @Binding var visitFilter: MapVisitFilter
-    @Binding var selectedCategory: IdeaCategory?
+struct MapPreviewCard: View {
+    let idea: DateIdea
+    let distanceText: String?
+    let onDismiss: () -> Void
+
+    private var subtitle: String {
+        [idea.category.rawValue, idea.location.address, distanceText]
+            .compactMap { $0 }
+            .filter { !$0.isEmpty }
+            .joined(separator: " · ")
+    }
+
+    private var statusText: String {
+        let base = idea.hasVisited ? "Visited" : "Want to go"
+        let dealCount = idea.activeDeals.count
+        guard dealCount > 0 else { return base }
+        return "\(base) · \(dealCount) active deal\(dealCount == 1 ? "" : "s")"
+    }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    ForEach(MapVisitFilter.allCases) { filter in
-                        FilterChip(title: filter.rawValue, isSelected: visitFilter == filter) {
-                            visitFilter = filter
-                        }
-                    }
-                }
-            }
+        NavigationLink(value: idea.id) {
+            HStack(spacing: 12) {
+                IdeaCoverImage(imageName: idea.imageName, url: idea.imageURL)
+                    .frame(width: 58, height: 58)
+                    .clipShape(RoundedRectangle(cornerRadius: 10))
 
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    FilterChip(title: "All types", isSelected: selectedCategory == nil) {
-                        selectedCategory = nil
-                    }
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(idea.title)
+                        .font(.placeTitle(.subheadline))
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
 
-                    ForEach(IdeaCategory.allCases) { category in
-                        FilterChip(title: category.rawValue, isSelected: selectedCategory == category) {
-                            selectedCategory = category
-                        }
-                    }
+                    Text(subtitle)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+
+                    Label(statusText, systemImage: idea.hasVisited ? "checkmark.circle.fill" : "heart.fill")
+                        .font(.caption2.weight(.medium))
+                        .foregroundStyle(idea.hasVisited ? Color.green : Color.red)
+                        .lineLimit(1)
                 }
+
+                Spacer(minLength: 4)
+
+                Image(systemName: "chevron.right")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(.tertiary)
+                    .padding(.trailing, 2)
             }
+            .padding(12)
+            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
+        }
+        .buttonStyle(.plain)
+        .overlay(alignment: .topTrailing) {
+            Button(action: onDismiss) {
+                Image(systemName: "xmark.circle.fill")
+                    .font(.title3)
+                    .foregroundStyle(.secondary)
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Dismiss preview")
         }
     }
 }
 
 struct WorkbookMapPin: View {
     let isVisited: Bool
+    var isSelected = false
 
     private var pinColor: Color {
-        isVisited ? .green : .orange
+        isVisited ? .green : .red
     }
+
+    private var outerSize: CGFloat { isSelected ? 46 : 38 }
+    private var innerSize: CGFloat { isSelected ? 37 : 30 }
 
     var body: some View {
         ZStack {
             Circle()
                 .fill(.background)
-                .frame(width: 38, height: 38)
-                .shadow(color: .black.opacity(0.22), radius: 5, y: 3)
+                .frame(width: outerSize, height: outerSize)
+                .shadow(color: .black.opacity(isSelected ? 0.3 : 0.22), radius: isSelected ? 7 : 5, y: 3)
 
             Circle()
                 .fill(pinColor)
-                .frame(width: 30, height: 30)
+                .frame(width: innerSize, height: innerSize)
 
             Image(systemName: isVisited ? "checkmark" : "heart.fill")
-                .font(.caption.weight(.bold))
+                .font(isSelected ? .subheadline.weight(.bold) : .caption.weight(.bold))
                 .foregroundStyle(.white)
         }
         .accessibilityLabel(isVisited ? "Visited place" : "Want to go")
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }
 

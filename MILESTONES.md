@@ -66,6 +66,29 @@ large titles, WCAG AA contrast throughout, Dynamic Type everywhere.
   (CLLocationManager, when-in-use; plist string already existed for the map) with
   ideas lacking coordinates sorted last and a denied-permission footnote in the sheet.
 
+## Post-redesign: Map revamp ✅
+- Full-bleed map: nav bar hidden, the opaque material filter strip removed.
+- Floating Liquid Glass controls (`glassEffect`): segmented All / Want to go / Visited
+  capsule top-left; round type-filter button top-right that fans out per-category icon
+  rows (only types with mappable places), dimming the map behind; active-type dot badge.
+- Tapping a pin now shows a `MapPreviewCard` (photo, serif name, category · address ·
+  distance via `refreshUserLocationIfAuthorized` — never prompts, only uses an existing
+  grant), status + active-deal line, tap to push detail, X or re-tap pin to dismiss.
+- Count pill ("N places shown") bottom-left when filters are active; selection is
+  dropped automatically if a filter change hides the selected pin.
+- Pins: green = visited, red = not visited (user choice); selected pin grows.
+- Device-test fixes: segmented control + fan button rebuilt on `.glass` /
+  `.glassProminent` button styles (custom buttons inside `glassEffect` broke
+  hit-testing); preview-card dismiss got a 44pt hit target; app locked to portrait
+  in Info.plist.
+- Second pass (user choice "B + Rosé"): app accent changed indigo → rosé #C74069
+  (`Theme.accent`; AA-safe with white, AI gradient stays indigo/purple); map controls
+  moved into a frosted `safeAreaInset` header (`.ultraThinMaterial` + hairline);
+  default `.mapControls` restored since the built-in compass/location no longer
+  collide with anything. The type rows float over the map as a dimmed overlay popup —
+  expanding the header resized the Map every animation frame, churning MapKit's Metal
+  drawable (MTLDebugDevice crash + lag), so the header stays fixed-height.
+
 ## M6 — Polish ✅
 - Save toast: after an import saves, the tab accessory shows "Saved to <workbook>"
   (`SaveToastAccessory`) with a View action that opens the idea detail in a sheet,

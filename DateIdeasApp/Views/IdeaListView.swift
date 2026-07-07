@@ -230,11 +230,6 @@ struct IdeaRowView: View {
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
 
-                Text(idea.factualSummary)
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
-
                 if let countdownText = idea.nextDealCountdownText {
                     Label(countdownText, systemImage: "clock")
                         .font(.caption.weight(.medium))

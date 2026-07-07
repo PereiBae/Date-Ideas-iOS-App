@@ -86,6 +86,16 @@ final class UserLocationProvider: NSObject, CLLocationManagerDelegate {
         }
     }
 
+    // Never prompts: fetches a fix only when permission was already granted.
+    func requestLocationIfAuthorized() {
+        switch manager.authorizationStatus {
+        case .authorizedWhenInUse, .authorizedAlways:
+            manager.requestLocation()
+        default:
+            break
+        }
+    }
+
     nonisolated func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
         Task { @MainActor in
             switch self.authorizationStatus {
@@ -154,13 +164,22 @@ final class DateIdeaStore: ObservableObject {
 
     func requestLocationForSorting() {
         locationDenied = false
+        prepareLocationCallbacks()
+        locationProvider.requestLocation()
+    }
+
+    func refreshUserLocationIfAuthorized() {
+        prepareLocationCallbacks()
+        locationProvider.requestLocationIfAuthorized()
+    }
+
+    private func prepareLocationCallbacks() {
         locationProvider.onUpdate = { [weak self] location in
             self?.userLocation = location
         }
         locationProvider.onDenied = { [weak self] in
             self?.locationDenied = true
         }
-        locationProvider.requestLocation()
     }
 
     private func sortedIdeas(_ list: [DateIdea]) -> [DateIdea] {
