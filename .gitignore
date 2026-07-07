@@ -3,3 +3,6 @@ DerivedData/
 *.xcuserstate
 .DS_Store
 
+
+# Firebase config contains the API key — keep it local only.
+DateIdeasApp/GoogleService-Info.plist
