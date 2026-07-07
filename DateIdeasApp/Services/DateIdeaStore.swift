@@ -154,8 +154,22 @@ final class DateIdeaStore: ObservableObject {
     init(storage: IdeaStorage = UserDefaultsIdeaStorage(), extractor: PostExtractionServicing = MockPostExtractionService()) {
         self.storage = storage
         self.extractor = extractor
-        let storedIdeas = storage.loadIdeas()
-        self.ideas = storedIdeas.isEmpty ? SampleData.ideas : storedIdeas
+
+        // With a restored Firebase session the workbook listener supplies the
+        // ideas; seeding local/sample data here would flash for a frame first.
+        let hasRemoteSession: Bool
+#if canImport(FirebaseAuth) && canImport(FirebaseCore)
+        hasRemoteSession = FirebaseApp.app() != nil && Auth.auth().currentUser != nil
+#else
+        hasRemoteSession = false
+#endif
+
+        if hasRemoteSession {
+            self.ideas = []
+        } else {
+            let storedIdeas = storage.loadIdeas()
+            self.ideas = storedIdeas.isEmpty ? SampleData.ideas : storedIdeas
+        }
     }
 
     var filteredIdeas: [DateIdea] {
@@ -466,6 +480,22 @@ final class CollaborationStore: ObservableObject {
     private var workbooksListener: ListenerRegistration?
     private var ideasListener: ListenerRegistration?
 #endif
+
+    init() {
+        // Firebase restores the signed-in session synchronously from disk.
+        // Reading it here (instead of in start(), which runs onAppear) keeps
+        // the sign-in gate from flashing for one frame on every cold launch.
+#if canImport(FirebaseAuth) && canImport(FirebaseCore)
+        if FirebaseApp.app() != nil, let user = Auth.auth().currentUser {
+            currentUser = AppUser(
+                id: user.uid,
+                displayName: user.displayName ?? user.email ?? "Date Planner",
+                email: user.email,
+                photoURL: user.photoURL
+            )
+        }
+#endif
+    }
 
     var isFirebaseSDKLinked: Bool {
 #if canImport(FirebaseCore) && canImport(FirebaseAuth) && canImport(FirebaseFirestore)
