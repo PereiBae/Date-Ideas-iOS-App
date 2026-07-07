@@ -1,5 +1,9 @@
 import CoreLocation
 import Foundation
+import UIKit
+#if canImport(GoogleSignIn)
+import GoogleSignIn
+#endif
 #if canImport(FirebaseCore)
 import FirebaseCore
 #endif
@@ -442,6 +446,8 @@ struct Workbook: Identifiable, Codable, Hashable {
 enum CollaborationError: LocalizedError {
     case firebaseUnavailable
     case firebaseNotConfigured
+    case googleSignInNotConfigured
+    case missingPresenter
     case missingUser
     case missingWorkbook
     case workbookNotFound
@@ -453,6 +459,10 @@ enum CollaborationError: LocalizedError {
             "Firebase SDK is not linked yet."
         case .firebaseNotConfigured:
             "Firebase is not configured. Add GoogleService-Info.plist to the app target."
+        case .googleSignInNotConfigured:
+            "Google sign-in isn't set up yet. Enable the Google provider in Firebase and update GoogleService-Info.plist."
+        case .missingPresenter:
+            "Could not open the Google sign-in screen. Please try again."
         case .missingUser:
             "Sign in before using shared workbooks."
         case .missingWorkbook:
@@ -620,9 +630,67 @@ final class CollaborationStore: ObservableObject {
         }
     }
 
+    func signInWithGoogle() async {
+        await performFirebaseAction("Could not sign in with Google.") {
+#if canImport(FirebaseAuth) && canImport(FirebaseFirestore) && canImport(FirebaseCore) && canImport(GoogleSignIn)
+            guard self.isFirebaseConfigured else { throw CollaborationError.firebaseNotConfigured }
+            // The clientID only exists after the Google provider is enabled in
+            // the Firebase console and a fresh GoogleService-Info.plist is added.
+            guard let clientID = FirebaseApp.app()?.options.clientID else {
+                throw CollaborationError.googleSignInNotConfigured
+            }
+            guard let presenter = Self.topViewController() else {
+                throw CollaborationError.missingPresenter
+            }
+
+            GIDSignIn.sharedInstance.configuration = GIDConfiguration(clientID: clientID)
+            let result = try await GIDSignIn.sharedInstance.signIn(withPresenting: presenter)
+
+            guard let idToken = result.user.idToken?.tokenString else {
+                throw CollaborationError.invalidSnapshot
+            }
+
+            let credential = GoogleAuthProvider.credential(
+                withIDToken: idToken,
+                accessToken: result.user.accessToken.tokenString
+            )
+            let authResult = try await Self.signInWithFirebase(credential: credential)
+            let user = AppUser(
+                id: authResult.user.uid,
+                displayName: authResult.user.displayName
+                    ?? result.user.profile?.name
+                    ?? authResult.user.email
+                    ?? "Date Planner",
+                email: authResult.user.email,
+                photoURL: authResult.user.photoURL ?? result.user.profile?.imageURL(withDimension: 200)
+            )
+            try await self.finishSignIn(user: user, status: "Signed in with Google.")
+#else
+            throw CollaborationError.firebaseUnavailable
+#endif
+        }
+    }
+
+    private static func topViewController() -> UIViewController? {
+        let root = UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .first { $0.activationState == .foregroundActive }?
+            .keyWindow?
+            .rootViewController
+
+        var top = root
+        while let presented = top?.presentedViewController {
+            top = presented
+        }
+        return top
+    }
+
     func signOut() async {
         await performFirebaseAction("Could not sign out.") {
 #if canImport(FirebaseAuth) && canImport(FirebaseFirestore) && canImport(FirebaseCore)
+#if canImport(GoogleSignIn)
+            GIDSignIn.sharedInstance.signOut()
+#endif
             try Auth.auth().signOut()
             self.workbooksListener?.remove()
             self.ideasListener?.remove()
@@ -941,6 +1009,20 @@ private extension CollaborationStore {
     static func createFirebaseUser(email: String, password: String) async throws -> AuthDataResult {
         try await withCheckedThrowingContinuation { continuation in
             Auth.auth().createUser(withEmail: email, password: password) { result, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                } else if let result {
+                    continuation.resume(returning: result)
+                } else {
+                    continuation.resume(throwing: CollaborationError.invalidSnapshot)
+                }
+            }
+        }
+    }
+
+    static func signInWithFirebase(credential: AuthCredential) async throws -> AuthDataResult {
+        try await withCheckedThrowingContinuation { continuation in
+            Auth.auth().signIn(with: credential) { result, error in
                 if let error {
                     continuation.resume(throwing: error)
                 } else if let result {

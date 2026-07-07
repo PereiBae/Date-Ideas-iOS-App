@@ -404,6 +404,9 @@ struct AuthenticationGateView: View {
                     AppleSignInButton()
                         .environmentObject(collaborationStore)
 
+                    GoogleSignInButton()
+                        .environmentObject(collaborationStore)
+
                     labeledDivider
 
                     if mode == .createAccount {
@@ -671,6 +674,9 @@ struct AccountWorkbookView: View {
             Section {
                 AppleSignInButton()
                     .environmentObject(collaborationStore)
+
+                GoogleSignInButton()
+                    .environmentObject(collaborationStore)
             }
 
             Section("Sign in") {
@@ -825,6 +831,34 @@ struct AppleSignInButton: View {
         let inputData = Data(input.utf8)
         let hashedData = SHA256.hash(data: inputData)
         return hashedData.map { String(format: "%02x", $0) }.joined()
+    }
+}
+
+struct GoogleSignInButton: View {
+    @EnvironmentObject private var collaborationStore: CollaborationStore
+
+    var body: some View {
+        Button {
+            Task {
+                await collaborationStore.signInWithGoogle()
+            }
+        } label: {
+            HStack(spacing: 10) {
+                Text("G")
+                    .font(.system(.body, design: .rounded).weight(.bold))
+                    .frame(width: 24, height: 24)
+                    .foregroundStyle(.blue)
+                    .background(.white, in: Circle())
+
+                Text("Continue with Google")
+                    .fontWeight(.semibold)
+            }
+            .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.large)
+        .disabled(!collaborationStore.canUseFirebase || collaborationStore.isSyncing)
+        .accessibilityLabel("Continue with Google")
     }
 }
 

@@ -3,6 +3,9 @@ import UIKit
 #if canImport(FirebaseCore)
 import FirebaseCore
 #endif
+#if canImport(GoogleSignIn)
+import GoogleSignIn
+#endif
 
 enum Theme {
     // Rosé — deep enough for WCAG AA white text on filled chips and buttons.
@@ -62,6 +65,11 @@ struct DateIdeasApp: App {
             .environmentObject(collaborationStore)
             .onAppear {
                 collaborationStore.attach(dateIdeaStore: store)
+            }
+            .onOpenURL { url in
+#if canImport(GoogleSignIn)
+                GIDSignIn.sharedInstance.handle(url)
+#endif
             }
         }
     }
