@@ -3,11 +3,14 @@ import SwiftUI
 
 struct IdeaDetailView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.openURL) private var openURL
     @EnvironmentObject private var store: DateIdeaStore
+    @EnvironmentObject private var collaborationStore: CollaborationStore
     @State private var showingVisitSheet = false
     @State private var showingDeleteConfirmation = false
     @State private var showingEditSheet = false
     @State private var editingVisit: Visit?
+    @State private var copiedWorkbookName: String?
 
     let idea: DateIdea
 
@@ -15,127 +18,88 @@ struct IdeaDetailView: View {
         store.ideas.first(where: { $0.id == idea.id }) ?? idea
     }
 
+    private var otherWorkbooks: [Workbook] {
+        guard collaborationStore.canUseFirebase else { return [] }
+        return collaborationStore.workbooks.filter { $0.id != collaborationStore.activeWorkbook?.id }
+    }
+
     var body: some View {
         List {
-            Section {
-                IdeaCoverImage(imageName: currentIdea.imageName, url: currentIdea.imageURL)
-                    .frame(height: 220)
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
-                    .listRowInsets(EdgeInsets(top: 12, leading: 16, bottom: 12, trailing: 16))
-            }
-
-            Section {
-                VStack(alignment: .leading, spacing: 12) {
-                    Text(currentIdea.category.rawValue)
-                        .font(.caption.weight(.semibold))
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(Color(.secondarySystemGroupedBackground))
-                        .clipShape(Capsule())
-
-                    Text(currentIdea.factualSummary)
-                        .font(.body)
-
-                    TagWrap(tags: currentIdea.displayTagTitles)
-                }
-            }
-
-            Section("Location") {
-                VStack(alignment: .leading, spacing: 12) {
-                    Text(currentIdea.location.address)
-                        .font(.subheadline)
-
-                    PlaceMapView(location: currentIdea.location)
-                        .frame(height: 220)
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
-                }
-
-                if let website = currentIdea.location.websiteURL {
-                    Link(destination: website) {
-                        Label("Website", systemImage: "safari")
-                    }
-                }
-            }
+            heroSection
+            titleSection
 
             if !currentIdea.activeDeals.isEmpty {
-                Section("Current Deals") {
-                    ForEach(currentIdea.activeDeals) { deal in
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text(deal.title)
-                                .font(.headline)
-                            Text(deal.details)
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-                            DealStatusLine(deal: deal)
-                        }
-                    }
-                }
+                dealsSection
+            }
+
+            locationSection
+            visitsSection
+
+            if !currentIdea.sourcePosts.isEmpty {
+                sourcesSection
             }
 
             if !currentIdea.deals.filter({ !$0.isVisible }).isEmpty {
-                Section("Deal History") {
-                    ForEach(currentIdea.deals.filter { !$0.isVisible }) { deal in
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(deal.title)
-                                .font(.headline)
-                            Text(deal.details)
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-                            DealStatusLine(deal: deal)
-                        }
-                    }
-                }
+                dealHistorySection
             }
+        }
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
+                    Button {
+                        showingEditSheet = true
+                    } label: {
+                        Label("Edit", systemImage: "pencil")
+                    }
 
-            Section("Visits") {
-                if currentIdea.visits.isEmpty {
-                    Text("Not visited yet")
-                        .foregroundStyle(.secondary)
-                } else {
-                    ForEach(currentIdea.visits) { visit in
-                        Button {
-                            editingVisit = visit
+                    if !otherWorkbooks.isEmpty {
+                        Menu {
+                            ForEach(otherWorkbooks) { workbook in
+                                Button {
+                                    copy(to: workbook)
+                                } label: {
+                                    Label(workbook.name, systemImage: workbook.isPersonal ? "lock" : "person.2")
+                                }
+                            }
                         } label: {
-                            VisitRowView(visit: visit)
+                            Label("Copy to workbook", systemImage: "doc.on.doc")
                         }
-                        .buttonStyle(.plain)
                     }
-                    .onDelete { offsets in
-                        store.deleteVisits(at: offsets, from: currentIdea)
-                    }
-                }
 
-                Button {
-                    showingVisitSheet = true
+                    Divider()
+
+                    Button(role: .destructive) {
+                        showingDeleteConfirmation = true
+                    } label: {
+                        Label("Delete", systemImage: "trash")
+                    }
                 } label: {
-                    Label("Add Visit", systemImage: "plus.circle")
-                }
-            }
-
-            if !currentIdea.sourcePosts.isEmpty {
-                Section("Sources") {
-                    ForEach(currentIdea.sourcePosts) { post in
-                        Link(destination: post.url) {
-                            Label(post.platform, systemImage: "link")
-                        }
-                    }
+                    Label("More", systemImage: "ellipsis.circle")
                 }
             }
         }
-        .navigationTitle(currentIdea.title)
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItemGroup(placement: .topBarTrailing) {
-                Button {
-                    showingEditSheet = true
-                } label: {
-                    Label("Edit", systemImage: "pencil")
-                }
-
-                Button(role: .destructive) {
-                    showingDeleteConfirmation = true
-                } label: {
-                    Label("Delete", systemImage: "trash")
+        .overlay(alignment: .bottom) {
+            if let copiedWorkbookName {
+                Label("Copied to \(copiedWorkbookName)", systemImage: "checkmark.circle.fill")
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(.primary)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                    .background(.regularMaterial, in: Capsule())
+                    .padding(.bottom, 12)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
+        .sensoryFeedback(.success, trigger: copiedWorkbookName) { _, newValue in
+            newValue != nil
+        }
+        .task(id: copiedWorkbookName) {
+            guard copiedWorkbookName != nil else { return }
+            try? await Task.sleep(for: .seconds(2.5))
+            if !Task.isCancelled {
+                withAnimation(.smooth(duration: 0.25)) {
+                    copiedWorkbookName = nil
                 }
             }
         }
@@ -163,22 +127,319 @@ struct IdeaDetailView: View {
             }
         }
     }
-}
 
-struct TagWrap: View {
-    let tags: [String]
+    // MARK: Hero
 
-    var body: some View {
-        ViewThatFits {
-            HStack {
-                ForEach(tags, id: \.self) { tag in
-                    TagPill(title: tag)
-                }
+    private var heroSection: some View {
+        Section {
+            heroImage
+                .listRowInsets(EdgeInsets())
+                .listRowBackground(Color.clear)
+        }
+    }
+
+    @ViewBuilder
+    private var heroImage: some View {
+        let cover = IdeaCoverImage(imageName: currentIdea.imageName, url: currentIdea.imageURL)
+            .frame(height: 230)
+            .frame(maxWidth: .infinity)
+            .clipShape(RoundedRectangle(cornerRadius: 16))
+            .overlay(alignment: .topTrailing) {
+                statusBadge
+                    .padding(10)
+            }
+            .overlay(alignment: .bottomLeading) {
+                categoryBadge
+                    .padding(10)
             }
 
-            VStack(alignment: .leading) {
-                ForEach(tags, id: \.self) { tag in
-                    TagPill(title: tag)
+        if let post = currentIdea.sourcePosts.first {
+            Button {
+                openURL(post.url)
+            } label: {
+                cover
+                    .overlay(alignment: .bottomTrailing) {
+                        HStack(spacing: 4) {
+                            Text("View post")
+                            Image(systemName: "arrow.up.right")
+                        }
+                        .font(.caption.weight(.semibold))
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(.thinMaterial, in: Capsule())
+                        .padding(10)
+                    }
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Cover photo. Opens the original \(post.platform) post.")
+        } else {
+            cover
+        }
+    }
+
+    private var statusBadge: some View {
+        Label(
+            currentIdea.hasVisited ? "Visited" : "Want to go",
+            systemImage: currentIdea.hasVisited ? "checkmark.circle.fill" : "heart.fill"
+        )
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(.white)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(currentIdea.hasVisited ? Color.green : Color.red, in: Capsule())
+    }
+
+    private var categoryBadge: some View {
+        Label(currentIdea.category.rawValue, systemImage: currentIdea.category.systemImage)
+            .font(.caption.weight(.semibold))
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(.thinMaterial, in: Capsule())
+    }
+
+    // MARK: Title, actions, summary
+
+    private var titleSection: some View {
+        Section {
+            VStack(alignment: .leading, spacing: 12) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(currentIdea.title)
+                        .font(.placeTitle(.title2))
+
+                    Text(currentIdea.location.address)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+
+                if let contributor = currentIdea.createdByDisplayName {
+                    HStack(spacing: 8) {
+                        ContributorAvatar(name: contributor, imageURL: currentIdea.createdByPhotoURL)
+                            .frame(width: 22, height: 22)
+
+                        Text("Added by \(contributor) · \(currentIdea.createdAt.formatted(date: .abbreviated, time: .omitted))")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel("Added by \(contributor)")
+                }
+
+                actionRow
+
+                if !currentIdea.factualSummary.isEmpty {
+                    Text(currentIdea.factualSummary)
+                        .font(.body)
+                }
+
+                if !currentIdea.displayTagTitles.isEmpty {
+                    FlowLayout(spacing: 6) {
+                        ForEach(currentIdea.displayTagTitles, id: \.self) { tag in
+                            TagPill(title: tag)
+                        }
+                    }
+                }
+            }
+            .padding(.vertical, 4)
+        }
+    }
+
+    private var actionRow: some View {
+        HStack(spacing: 8) {
+            Button {
+                showingVisitSheet = true
+            } label: {
+                Label("Log visit", systemImage: "plus")
+                    .font(.subheadline.weight(.semibold))
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.glassProminent)
+
+            Button {
+                openDirections()
+            } label: {
+                Label("Directions", systemImage: "arrow.triangle.turn.up.right.diamond")
+                    .font(.subheadline.weight(.medium))
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.glass)
+
+            if let website = currentIdea.location.websiteURL {
+                Button {
+                    openURL(website)
+                } label: {
+                    Image(systemName: "safari")
+                        .font(.subheadline.weight(.medium))
+                }
+                .buttonStyle(.glass)
+                .accessibilityLabel("Website")
+            }
+        }
+        .buttonBorderShape(.capsule)
+    }
+
+    // MARK: Deals
+
+    private var dealsSection: some View {
+        Section("Current deals") {
+            ForEach(currentIdea.activeDeals) { deal in
+                HStack(alignment: .top, spacing: 10) {
+                    Image(systemName: "tag.fill")
+                        .font(.subheadline)
+                        .foregroundStyle(Color.accentColor)
+                        .padding(.top, 2)
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(deal.title.isEmpty ? "Deal" : deal.title)
+                            .font(.subheadline.weight(.semibold))
+
+                        Text(deal.details)
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+
+                        DealStatusLine(deal: deal)
+                    }
+                }
+                .padding(.vertical, 2)
+            }
+        }
+    }
+
+    private var expiredDeals: [Deal] {
+        currentIdea.deals.filter { !$0.isVisible }
+    }
+
+    private var dealHistorySection: some View {
+        Section {
+            DisclosureGroup("Deal history (\(expiredDeals.count))") {
+                ForEach(expiredDeals) { deal in
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(deal.title.isEmpty ? "Deal" : deal.title)
+                            .font(.subheadline.weight(.semibold))
+
+                        Text(deal.details)
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+
+                        DealStatusLine(deal: deal)
+                    }
+                    .padding(.vertical, 2)
+                }
+            }
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
+        }
+    }
+
+    // MARK: Location
+
+    private var locationSection: some View {
+        Section("Location") {
+            VStack(alignment: .leading, spacing: 10) {
+                PlaceMapView(location: currentIdea.location)
+                    .frame(height: 170)
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+
+                Label(currentIdea.location.address, systemImage: "mappin.and.ellipse")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.vertical, 4)
+        }
+    }
+
+    // MARK: Visits
+
+    private var visitsSection: some View {
+        Section {
+            if currentIdea.visits.isEmpty {
+                Text("Not visited yet — log your first visit.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            } else {
+                ForEach(currentIdea.visits) { visit in
+                    Button {
+                        editingVisit = visit
+                    } label: {
+                        VisitRowView(visit: visit)
+                    }
+                    .buttonStyle(.plain)
+                }
+                .onDelete { offsets in
+                    store.deleteVisits(at: offsets, from: currentIdea)
+                }
+            }
+        } header: {
+            HStack {
+                Text("Visits")
+
+                Spacer()
+
+                Button {
+                    showingVisitSheet = true
+                } label: {
+                    Label("Add", systemImage: "plus")
+                        .font(.footnote.weight(.semibold))
+                }
+                .buttonStyle(.borderless)
+            }
+        }
+    }
+
+    // MARK: Sources
+
+    private var sourcesSection: some View {
+        Section("From") {
+            FlowLayout(spacing: 8) {
+                ForEach(currentIdea.sourcePosts) { post in
+                    Button {
+                        openURL(post.url)
+                    } label: {
+                        HStack(spacing: 5) {
+                            Text(post.platform)
+
+                            Image(systemName: "arrow.up.right")
+                                .font(.caption2.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                        }
+                        .font(.footnote.weight(.medium))
+                        .padding(.horizontal, 11)
+                        .padding(.vertical, 6)
+                        .background {
+                            Capsule().fill(Color(.tertiarySystemGroupedBackground))
+                            Capsule().strokeBorder(Color(.separator), lineWidth: 0.5)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.vertical, 2)
+        }
+    }
+
+    // MARK: Actions
+
+    private func openDirections() {
+        let location = currentIdea.location
+
+        if let latitude = location.latitude, let longitude = location.longitude {
+            let mapItem = MKMapItem(location: CLLocation(latitude: latitude, longitude: longitude), address: nil)
+            mapItem.name = location.name.isEmpty ? currentIdea.title : location.name
+            mapItem.openInMaps(launchOptions: [MKLaunchOptionsDirectionsModeKey: MKLaunchOptionsDirectionsModeDefault])
+        } else {
+            let query = "\(currentIdea.title) \(location.address)"
+                .addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+            if let url = URL(string: "maps://?q=\(query)") {
+                openURL(url)
+            }
+        }
+    }
+
+    private func copy(to workbook: Workbook) {
+        Task {
+            await collaborationStore.copyIdea(currentIdea, to: workbook)
+            if collaborationStore.errorMessage == nil {
+                withAnimation(.smooth(duration: 0.25)) {
+                    copiedWorkbookName = workbook.name
                 }
             }
         }
@@ -199,114 +460,153 @@ struct EditIdeaView: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("Details") {
-                    TextField("Name", text: $idea.title)
-
-                    Picker("Type", selection: $idea.category) {
-                        ForEach(IdeaCategory.allCases) { category in
-                            Text(category.rawValue).tag(category)
-                        }
-                    }
-
-                    TextField("Summary", text: $idea.factualSummary, axis: .vertical)
-                        .lineLimit(3...6)
-
-                    TextField("Notes", text: $idea.notes, axis: .vertical)
-                        .lineLimit(2...6)
-                }
-
-                Section("Location") {
-                    TextField("Place name", text: $idea.location.name)
-                    TextField("Address", text: $idea.location.address, axis: .vertical)
-                        .lineLimit(2...4)
-                }
-
-                Section("Image") {
-                    TextField("Image URL", text: Binding(
-                        get: { idea.imageURL?.absoluteString ?? "" },
-                        set: { value in
-                            let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-                            idea.imageURL = trimmed.isEmpty ? nil : URL(string: trimmed)
-                        }
-                    ))
-                    .textInputAutocapitalization(.never)
-                    .keyboardType(.URL)
-                    .autocorrectionDisabled()
-
-                    IdeaCoverImage(imageName: idea.imageName, url: idea.imageURL)
-                        .frame(height: 180)
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
-                }
-
-                Section("Cuisine") {
-                    ForEach(CuisineTag.allCases) { tag in
-                        Toggle(tag.rawValue, isOn: Binding(
-                            get: { idea.cuisineTags.contains(tag) },
-                            set: { isSelected in
-                                if isSelected {
-                                    idea.cuisineTags.append(tag)
-                                } else {
-                                    idea.cuisineTags.removeAll { $0 == tag }
-                                }
-                            }
-                        ))
-                    }
-                }
-
-                Section("Food Items") {
-                    ForEach(FoodTag.allCases) { tag in
-                        Toggle(tag.rawValue, isOn: Binding(
-                            get: { idea.foodTags.contains(tag) },
-                            set: { isSelected in
-                                if isSelected {
-                                    idea.foodTags.append(tag)
-                                } else {
-                                    idea.foodTags.removeAll { $0 == tag }
-                                }
-                            }
-                        ))
-                    }
-                }
-
-                Section("Deals") {
-                    if idea.deals.isEmpty {
-                        Text("No deals saved")
-                            .foregroundStyle(.secondary)
-                    } else {
-                        ForEach($idea.deals) { $deal in
-                            DealEditorRows(deal: $deal)
-                        }
-                        .onDelete { offsets in
-                            idea.deals.remove(atOffsets: offsets)
-                        }
-                    }
-
-                    Button {
-                        idea.deals.append(Deal(title: "", details: "", status: .unknown))
-                    } label: {
-                        Label("Add Deal", systemImage: "tag")
-                    }
-                }
+                heroSection
+                detailsSection
+                locationSection
+                cuisineSection
+                foodSection
+                dealsSection
             }
             .navigationTitle("Edit Place")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") {
                         dismiss()
                     }
                 }
+            }
+            .safeAreaInset(edge: .bottom) {
+                saveBar
+            }
+        }
+    }
 
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") {
-                        if idea.location.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                            idea.location.name = idea.title
-                        }
-                        onSave(idea)
-                        dismiss()
-                    }
-                    .disabled(idea.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+    private var heroSection: some View {
+        Section {
+            IdeaCoverImage(imageName: idea.imageName, url: idea.imageURL)
+                .frame(height: 200)
+                .frame(maxWidth: .infinity)
+                .clipShape(RoundedRectangle(cornerRadius: 16))
+                .listRowInsets(EdgeInsets())
+                .listRowBackground(Color.clear)
+
+            TextField("Image URL", text: Binding(
+                get: { idea.imageURL?.absoluteString ?? "" },
+                set: { value in
+                    let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+                    idea.imageURL = trimmed.isEmpty ? nil : URL(string: trimmed)
+                }
+            ))
+            .textInputAutocapitalization(.never)
+            .keyboardType(.URL)
+            .autocorrectionDisabled()
+            .font(.footnote)
+            .foregroundStyle(.secondary)
+        }
+    }
+
+    private var detailsSection: some View {
+        Section("Details") {
+            TextField("Name", text: $idea.title)
+                .font(.placeTitle(.body))
+
+            Picker("Type", selection: $idea.category) {
+                ForEach(IdeaCategory.allCases) { category in
+                    Label(category.rawValue, systemImage: category.systemImage)
+                        .tag(category)
                 }
             }
+
+            TextField("Summary", text: $idea.factualSummary, axis: .vertical)
+                .lineLimit(3...6)
+
+            TextField("Notes", text: $idea.notes, axis: .vertical)
+                .lineLimit(2...6)
+        }
+    }
+
+    private var locationSection: some View {
+        Section("Location") {
+            TextField("Address", text: $idea.location.address, axis: .vertical)
+                .lineLimit(2...4)
+        }
+    }
+
+    private var cuisineSection: some View {
+        Section("Cuisine") {
+            FlowLayout(spacing: 8) {
+                ForEach(CuisineTag.allCases) { tag in
+                    FilterChip(title: tag.rawValue, isSelected: idea.cuisineTags.contains(tag)) {
+                        toggle(tag, in: &idea.cuisineTags)
+                    }
+                }
+            }
+            .padding(.vertical, 4)
+        }
+    }
+
+    private var foodSection: some View {
+        Section("Food items") {
+            FlowLayout(spacing: 8) {
+                ForEach(FoodTag.allCases) { tag in
+                    FilterChip(title: tag.rawValue, isSelected: idea.foodTags.contains(tag)) {
+                        toggle(tag, in: &idea.foodTags)
+                    }
+                }
+            }
+            .padding(.vertical, 4)
+        }
+    }
+
+    private var dealsSection: some View {
+        Section("Deals") {
+            if idea.deals.isEmpty {
+                Text("No deals saved")
+                    .foregroundStyle(.secondary)
+            } else {
+                ForEach($idea.deals) { $deal in
+                    DealEditorRows(deal: $deal)
+                }
+                .onDelete { offsets in
+                    idea.deals.remove(atOffsets: offsets)
+                }
+            }
+
+            Button {
+                idea.deals.append(Deal(title: "", details: "", status: .unknown))
+            } label: {
+                Label("Add Deal", systemImage: "tag")
+            }
+        }
+    }
+
+    private var saveBar: some View {
+        Button(action: save) {
+            Text("Save changes")
+                .fontWeight(.semibold)
+                .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.glassProminent)
+        .controlSize(.large)
+        .disabled(idea.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+        .padding(.horizontal)
+        .padding(.vertical, 10)
+    }
+
+    private func save() {
+        if idea.location.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            idea.location.name = idea.title
+        }
+        onSave(idea)
+        dismiss()
+    }
+
+    private func toggle<Tag: Equatable>(_ tag: Tag, in tags: inout [Tag]) {
+        if tags.contains(tag) {
+            tags.removeAll { $0 == tag }
+        } else {
+            tags.append(tag)
         }
     }
 }
@@ -317,10 +617,10 @@ struct TagPill: View {
     var body: some View {
         Text(title)
             .font(.caption.weight(.medium))
-            .padding(.horizontal, 8)
+            .foregroundStyle(Color.accentColor)
+            .padding(.horizontal, 9)
             .padding(.vertical, 4)
-            .background(Color(.secondarySystemGroupedBackground))
-            .clipShape(Capsule())
+            .background(Color.accentColor.opacity(0.12), in: Capsule())
     }
 }
 

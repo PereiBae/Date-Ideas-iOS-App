@@ -486,7 +486,7 @@ struct AuthenticationGateView: View {
             }
             .accessibilityHidden(true)
 
-            Text("Date Ideas")
+            Text("RendezQueue")
                 .font(.system(.largeTitle, design: .serif).weight(.bold))
 
             Text("Save the places you find, plan them together.")
@@ -835,6 +835,7 @@ struct AppleSignInButton: View {
 }
 
 struct GoogleSignInButton: View {
+    @Environment(\.colorScheme) private var colorScheme
     @EnvironmentObject private var collaborationStore: CollaborationStore
 
     var body: some View {
@@ -844,21 +845,74 @@ struct GoogleSignInButton: View {
             }
         } label: {
             HStack(spacing: 10) {
-                Text("G")
-                    .font(.system(.body, design: .rounded).weight(.bold))
-                    .frame(width: 24, height: 24)
-                    .foregroundStyle(.blue)
-                    .background(.white, in: Circle())
+                GoogleLogoMark()
+                    .frame(width: 20, height: 20)
 
                 Text("Continue with Google")
-                    .fontWeight(.semibold)
+                    .font(.system(size: 18, weight: .medium))
             }
             .frame(maxWidth: .infinity)
+            .frame(height: 48)
+            .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         }
-        .buttonStyle(.bordered)
-        .controlSize(.large)
+        .buttonStyle(.plain)
+        .foregroundStyle(textColor)
+        .background(backgroundColor, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .strokeBorder(borderColor, lineWidth: 1)
+        }
         .disabled(!collaborationStore.canUseFirebase || collaborationStore.isSyncing)
         .accessibilityLabel("Continue with Google")
+    }
+
+    // Chrome colors from Google's sign-in branding guidelines.
+    private var backgroundColor: Color {
+        colorScheme == .dark ? Color(red: 0.075, green: 0.075, blue: 0.078) : .white
+    }
+
+    private var textColor: Color {
+        colorScheme == .dark ? Color(red: 0.89, green: 0.89, blue: 0.89) : Color(red: 0.12, green: 0.12, blue: 0.12)
+    }
+
+    private var borderColor: Color {
+        colorScheme == .dark ? Color(red: 0.56, green: 0.57, blue: 0.56) : Color(red: 0.45, green: 0.46, blue: 0.46)
+    }
+}
+
+// The Google "G" drawn from arc segments, so no image asset is needed.
+struct GoogleLogoMark: View {
+    private static let blue = Color(red: 0.259, green: 0.522, blue: 0.957)
+    private static let green = Color(red: 0.204, green: 0.659, blue: 0.325)
+    private static let yellow = Color(red: 0.984, green: 0.737, blue: 0.02)
+    private static let red = Color(red: 0.918, green: 0.263, blue: 0.208)
+
+    var body: some View {
+        GeometryReader { proxy in
+            let size = min(proxy.size.width, proxy.size.height)
+            let ring = size * 0.2
+
+            ZStack {
+                segment(from: 0.0, to: 0.125, color: Self.blue, ring: ring)
+                segment(from: 0.125, to: 0.375, color: Self.green, ring: ring)
+                segment(from: 0.375, to: 0.625, color: Self.yellow, ring: ring)
+                segment(from: 0.625, to: 0.875, color: Self.red, ring: ring)
+
+                Rectangle()
+                    .fill(Self.blue)
+                    .frame(width: size / 2, height: ring)
+                    .position(x: size * 0.75, y: size / 2)
+            }
+            .frame(width: size, height: size)
+        }
+        .accessibilityHidden(true)
+    }
+
+    private func segment(from: CGFloat, to: CGFloat, color: Color, ring: CGFloat) -> some View {
+        Circle()
+            .inset(by: ring / 2)
+            .trim(from: from, to: to)
+            .stroke(color, lineWidth: ring)
     }
 }
 
@@ -962,6 +1016,9 @@ struct PlacesMapView: View {
     @State private var selectedCategory: IdeaCategory?
     @State private var selectedIdeaID: UUID?
     @State private var showingCategoryPicker = false
+    @State private var isSearching = false
+    @State private var searchText = ""
+    @FocusState private var searchFocused: Bool
 
     private var mappedIdeas: [DateIdea] {
         store.ideas.filter { idea in
@@ -1065,9 +1122,20 @@ struct PlacesMapView: View {
                     .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
             }
+            .overlay(alignment: .top) {
+                if isSearching {
+                    searchResultsPanel
+                        .padding(.horizontal)
+                        .padding(.top, 6)
+                }
+            }
             .safeAreaInset(edge: .top, spacing: 0) {
                 headerBar
             }
+            // The search keyboard must not resize the map: animating the map's
+            // frame churns MapKit's Metal drawable and crashes (same failure as
+            // the old expanding header).
+            .ignoresSafeArea(.keyboard)
             .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(for: UUID.self) { ideaID in
                 if let idea = store.ideas.first(where: { $0.id == ideaID }) {
@@ -1086,15 +1154,22 @@ struct PlacesMapView: View {
 
     // Frosted bar the map slides underneath. Fixed height: resizing the map
     // (e.g. expanding this bar) churns MapKit's Metal drawable and crashes,
-    // so the type rows float over the map as an overlay instead.
+    // so the type rows and search results float over the map as overlays.
     private var headerBar: some View {
-        HStack(alignment: .center, spacing: 10) {
-            visitFilterControl
+        HStack(alignment: .center, spacing: 8) {
+            if isSearching {
+                searchField
+            } else {
+                visitFilterControl
 
-            Spacer(minLength: 10)
+                Spacer(minLength: 8)
 
-            categoryFilterButton
+                searchButton
+                categoryFilterButton
+            }
         }
+        .controlSize(.small)
+        .frame(height: 44)
         .padding(.horizontal)
         .padding(.top, 8)
         .padding(.bottom, 10)
@@ -1102,6 +1177,56 @@ struct PlacesMapView: View {
         .background(.ultraThinMaterial)
         .overlay(alignment: .bottom) {
             Divider()
+        }
+    }
+
+    private var searchButton: some View {
+        Button {
+            withAnimation(.smooth(duration: 0.2)) {
+                isSearching = true
+                showingCategoryPicker = false
+            }
+            searchFocused = true
+        } label: {
+            Image(systemName: "magnifyingglass")
+                .font(.body.weight(.semibold))
+                .frame(width: 24, height: 24)
+        }
+        .buttonStyle(.glass)
+        .buttonBorderShape(.circle)
+        .accessibilityLabel("Search places")
+    }
+
+    private var searchField: some View {
+        HStack(spacing: 8) {
+            HStack(spacing: 6) {
+                Image(systemName: "magnifyingglass")
+                    .foregroundStyle(.secondary)
+
+                TextField("Search your places", text: $searchText)
+                    .focused($searchFocused)
+                    .submitLabel(.search)
+                    .autocorrectionDisabled()
+
+                if !searchText.isEmpty {
+                    Button {
+                        searchText = ""
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Clear search")
+                }
+            }
+            .padding(.horizontal, 12)
+            .frame(height: 38)
+            .background(.regularMaterial, in: Capsule())
+
+            Button("Cancel") {
+                closeSearch()
+            }
+            .font(.subheadline.weight(.medium))
         }
     }
 
@@ -1189,6 +1314,107 @@ struct PlacesMapView: View {
 
     private var countText: String {
         mappedIdeas.count == 1 ? "1 place shown" : "\(mappedIdeas.count) places shown"
+    }
+
+    // MARK: Search
+
+    // Searches every saved place with a coordinate, ignoring the active filters.
+    private var searchResults: [DateIdea] {
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else { return [] }
+
+        return Array(
+            store.ideas
+                .filter { idea in
+                    idea.location.latitude != nil && idea.location.longitude != nil && (
+                        idea.title.localizedCaseInsensitiveContains(query)
+                        || idea.location.name.localizedCaseInsensitiveContains(query)
+                        || idea.location.address.localizedCaseInsensitiveContains(query)
+                    )
+                }
+                .prefix(6)
+        )
+    }
+
+    @ViewBuilder
+    private var searchResultsPanel: some View {
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if !query.isEmpty {
+            VStack(spacing: 0) {
+                if searchResults.isEmpty {
+                    Text("No saved places match \"\(query)\"")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .padding(14)
+                } else {
+                    ForEach(searchResults) { idea in
+                        Button {
+                            selectSearchResult(idea)
+                        } label: {
+                            HStack(spacing: 10) {
+                                Circle()
+                                    .fill(idea.hasVisited ? Color.green : Color.red)
+                                    .frame(width: 10, height: 10)
+
+                                VStack(alignment: .leading, spacing: 1) {
+                                    Text(idea.title)
+                                        .font(.placeTitle(.subheadline))
+                                        .foregroundStyle(.primary)
+                                        .lineLimit(1)
+
+                                    Text(idea.location.address)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                        .lineLimit(1)
+                                }
+
+                                Spacer(minLength: 0)
+                            }
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 9)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+
+                        if idea.id != searchResults.last?.id {
+                            Divider()
+                                .padding(.leading, 34)
+                        }
+                    }
+                }
+            }
+            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
+        }
+    }
+
+    private func selectSearchResult(_ idea: DateIdea) {
+        // Clear any filter that would hide the picked place's pin.
+        if !visitFilter.matches(idea) {
+            visitFilter = .all
+        }
+        if let selectedCategory, selectedCategory != idea.category {
+            self.selectedCategory = nil
+        }
+
+        withAnimation(.smooth(duration: 0.3)) {
+            selectedIdeaID = idea.id
+            if let coordinate = idea.mapCoordinate {
+                position = .region(MKCoordinateRegion(
+                    center: coordinate,
+                    span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
+                ))
+            }
+        }
+        closeSearch()
+    }
+
+    private func closeSearch() {
+        searchFocused = false
+        withAnimation(.smooth(duration: 0.2)) {
+            isSearching = false
+            searchText = ""
+        }
     }
 
     private func toggleCategoryPicker() {

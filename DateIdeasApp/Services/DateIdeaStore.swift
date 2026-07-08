@@ -803,6 +803,35 @@ final class CollaborationStore: ObservableObject {
         }
     }
 
+    // Writes an independent copy (fresh id) into another workbook the user belongs to.
+    func copyIdea(_ idea: DateIdea, to workbook: Workbook) async {
+        await performFirebaseAction("Could not copy to \(workbook.name).") {
+#if canImport(FirebaseFirestore) && canImport(FirebaseAuth) && canImport(FirebaseCore)
+            guard self.isFirebaseConfigured else { throw CollaborationError.firebaseNotConfigured }
+            guard let user = self.currentUser else { throw CollaborationError.missingUser }
+
+            var copy = idea
+            copy.id = UUID()
+            copy.updatedAt = .now
+            if copy.createdByUserID == nil {
+                copy.createdByUserID = user.id
+                copy.createdByDisplayName = user.displayName
+                copy.createdByPhotoURL = user.photoURL
+            }
+
+            let document = Firestore.firestore()
+                .collection("workbooks")
+                .document(workbook.id)
+                .collection("ideas")
+                .document(copy.id.uuidString)
+            try await Self.setData(Self.dictionary(from: copy), at: document)
+            self.statusMessage = "Copied to \(workbook.name)."
+#else
+            throw CollaborationError.firebaseUnavailable
+#endif
+        }
+    }
+
     func deleteIdeaFromActiveWorkbook(_ id: UUID) async {
         guard canUseFirebase, let workbook = activeWorkbook else { return }
         await performFirebaseAction("Could not delete shared place.") {

@@ -142,7 +142,7 @@ struct WorkbookCard: View {
             }
 
             if isActive && workbook.isShareable {
-                ShareLink(item: "Join my Date Ideas workbook with code \(workbook.inviteCode)") {
+                ShareLink(item: "Join my RendezQueue workbook with code \(workbook.inviteCode)") {
                     HStack(spacing: 6) {
                         Text("Invite code")
                             .foregroundStyle(.secondary)

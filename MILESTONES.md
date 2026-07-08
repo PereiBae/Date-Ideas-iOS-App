@@ -89,6 +89,29 @@ large titles, WCAG AA contrast throughout, Dynamic Type everywhere.
   expanding the header resized the Map every animation frame, churning MapKit's Metal
   drawable (MTLDebugDevice crash + lag), so the header stays fixed-height.
 
+## Post-redesign: Detail page revamp + map search + copy to workbook ✅
+- `IdeaDetailView` rebuilt to match the design language: hero image (tappable when
+  source posts exist — opens the original TikTok/Instagram post, with a "View post"
+  affordance) with visited/want-to-go + category badges; serif title block with
+  address and "Added by" contributor row; action row (rosé glass "Log visit",
+  Directions via MKMapItem.openInMaps, website); rosé-tinted `TagPill` chips in a
+  `FlowLayout` (TagWrap deleted); active deals surfaced above the map; visits with
+  an Add header action; source pills; deal history in a `DisclosureGroup`;
+  Edit / Copy to workbook / Delete consolidated into a toolbar ⋯ menu.
+- Copy to workbook: `CollaborationStore.copyIdea(_:to:)` writes an independent copy
+  (fresh UUID) into the chosen workbook's ideas collection; confirmation capsule +
+  success haptic in the detail view.
+- Map search: magnifier button in the frosted header swaps the row to a search field
+  (header height fixed at 44 so the map never resizes); results float over the map,
+  searching all mappable places regardless of active filters; picking a result clears
+  conflicting filters, centers the camera, and opens the preview card.
+  `.ignoresSafeArea(.keyboard)` on the map stack — the search keyboard resizing the
+  map caused the same Metal-drawable crash as the old expanding header.
+- `EditIdeaView` restyled to mirror the import review: hero image + URL row, serif
+  name field, type picker with category icons, cuisine/food `FilterChip` chips in a
+  `FlowLayout` (toggle rows removed), place-name field dropped (falls back to title
+  on save as before), prominent glass "Save changes" bar.
+
 ## M6 — Polish ✅
 - Save toast: after an import saves, the tab accessory shows "Saved to <workbook>"
   (`SaveToastAccessory`) with a View action that opens the idea detail in a sheet,
