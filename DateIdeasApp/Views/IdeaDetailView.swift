@@ -252,7 +252,7 @@ struct IdeaDetailView: View {
                     .font(.subheadline.weight(.semibold))
                     .frame(maxWidth: .infinity)
             }
-            .buttonStyle(.glassProminent)
+            .buttonStyle(.glass)
 
             Button {
                 openDirections()
