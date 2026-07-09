@@ -55,6 +55,7 @@ struct FilterSheetView: View {
                 }
             }
         }
+        .tint(Theme.accent)
     }
 
     // MARK: Sections

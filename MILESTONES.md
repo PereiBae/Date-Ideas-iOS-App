@@ -1,5 +1,50 @@
 # UI Redesign Milestones
 
+## Tester feedback round 4 (2026-07-08) ✅
+- Full-width separators on the icon Type picker rows in import review + edit
+  (`alignmentGuide(.listRowSeparatorLeading)`, same fix as the saved list).
+- Rosé everywhere: `.tint(Theme.accent)` stamped on every sheet root (import
+  session, edit place, add visit, filter sheet, detail sheet, account,
+  workbooks, create/join, import link) — sheets and pushed picker lists don't
+  reliably inherit the root tint and were falling back to system blue.
+- Map: `.tint(.blue)` scoped to the Map view only, so the user-location dot and
+  MapKit's own controls are system blue while the app overlays stay rosé.
+
+## Tester feedback round 3 (2026-07-08) ✅
+- Type pickers unified: import review's picker was still plain text while edit
+  had icons. Both now use `Label` rows with `IdeaCategory.systemImage` and
+  `.pickerStyle(.navigationLink)` — a pushed Settings-style list where every
+  row shows its icon and the selection tick sits on the trailing (right) edge.
+  (A menu-style picker's leading checkmark is system-drawn and cannot be moved.)
+
+## Tester feedback round 2 (2026-07-08) ✅
+- Deal editor: title field is now bold (`.headline`), toggle rows spaced out
+  (VStack spacing 14 + vertical padding) so the switches no longer touch.
+- Saved list rows: separators run full width
+  (`alignmentGuide(.listRowSeparatorLeading)`), and the star score + visited
+  tick moved into one trailing column so they align consistently.
+- Visits now record who logged them (`Visit.addedBy*` optionals, stamped in
+  IdeaDetailView from the signed-in user); shared-workbook visit rows show a
+  "Visited by <name>" avatar line. Personal workbooks hide it.
+
+## Tester feedback round 1 (2026-07-08) ✅
+- Visits can now have an optional title ("Anniversary dinner"); shown as the
+  row headline with the date beneath. `Visit.title` is optional so old data
+  still decodes.
+- Visit photos are now actually saved: AddVisitView previously generated random
+  UUID names without writing image data. Save now loads each picked photo and
+  writes it via `DateIdeaImageStore`; thumbnails (`VisitPhotoStrip`) appear in
+  the add/edit sheet (removable) and on visit rows. On a partner's device the
+  files don't exist, so rows fall back to "N photos on your partner's device".
+- Keyboard dismissal: new `View.keyboardDismissal()` (DateIdeasApp.swift) adds
+  interactive scroll-to-dismiss + a keyboard Done button; applied to the import
+  review, edit place, and add visit forms. The bottom save bars on import
+  review / edit place hide while the keyboard is visible
+  (`observesKeyboardVisibility`) instead of floating up into the Done button.
+- Map: `UserAnnotation()` added so the blue current-location dot renders, and
+  opening the Map tab now requests location permission contextually (first
+  launch still shows zero dialogs — Saved is the initial tab).
+
 Design direction: iOS 26 native, Liquid Glass for the control layer only, indigo accent,
 purple reserved for Apple Intelligence provenance, New York serif for place names and
 large titles, WCAG AA contrast throughout, Dynamic Type everywhere.

@@ -14,6 +14,8 @@ struct ImportSessionSheet: View {
             }
         }
         .animation(.smooth(duration: 0.3), value: store.pendingDraft != nil)
+        // Sheets don't reliably inherit the root tint; stamp it explicitly.
+        .tint(Theme.accent)
     }
 }
 
@@ -163,6 +165,7 @@ struct ImportReviewView: View {
     @EnvironmentObject private var collaborationStore: CollaborationStore
     @State private var draft: ImportDraft
     @State private var aiFields: Set<AIField>
+    @State private var keyboardVisible = false
 
     let onSave: (ImportDraft) -> Void
 
@@ -194,6 +197,7 @@ struct ImportReviewView: View {
                 dealSection
                 sourceSection
             }
+            .keyboardDismissal()
             .navigationTitle("Review Import")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -204,8 +208,14 @@ struct ImportReviewView: View {
                 }
             }
             .safeAreaInset(edge: .bottom) {
-                saveBar
+                // Stays at the page bottom: hidden behind the keyboard while
+                // typing rather than floating above it.
+                if !keyboardVisible {
+                    saveBar
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
             }
+            .observesKeyboardVisibility($keyboardVisible)
             .onChange(of: draft.extractedIdea.title) { aiFields.remove(.title) }
             .onChange(of: draft.extractedIdea.category) { aiFields.remove(.category) }
             .onChange(of: draft.extractedIdea.factualSummary) { aiFields.remove(.summary) }
@@ -264,9 +274,12 @@ struct ImportReviewView: View {
             aiMarkedRow(.category) {
                 Picker("Type", selection: $draft.extractedIdea.category) {
                     ForEach(IdeaCategory.allCases) { category in
-                        Text(category.rawValue).tag(category)
+                        Label(category.rawValue, systemImage: category.systemImage)
+                            .tag(category)
                     }
                 }
+                // Pushed list style: icons on every row, selection tick trailing.
+                .pickerStyle(.navigationLink)
             }
 
             aiMarkedRow(.summary) {
@@ -394,6 +407,8 @@ struct ImportReviewView: View {
                 AIProvenanceMark()
             }
         }
+        // Keep row separators full width (Label rows shift them otherwise).
+        .alignmentGuide(.listRowSeparatorLeading) { _ in 0 }
     }
 
     private func sectionHeader(_ title: String, aiField: AIField) -> some View {

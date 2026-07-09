@@ -16,7 +16,7 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "A00000000000000000000300"
-               BuildableName = "DateIdeas.app"
+               BuildableName = "RendezQueue.app"
                BlueprintName = "DateIdeas"
                ReferencedContainer = "container:DateIdeas.xcodeproj">
             </BuildableReference>
@@ -46,7 +46,7 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "A00000000000000000000300"
-            BuildableName = "DateIdeas.app"
+            BuildableName = "RendezQueue.app"
             BlueprintName = "DateIdeas"
             ReferencedContainer = "container:DateIdeas.xcodeproj">
          </BuildableReference>
@@ -63,7 +63,7 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "A00000000000000000000300"
-            BuildableName = "DateIdeas.app"
+            BuildableName = "RendezQueue.app"
             BlueprintName = "DateIdeas"
             ReferencedContainer = "container:DateIdeas.xcodeproj">
          </BuildableReference>

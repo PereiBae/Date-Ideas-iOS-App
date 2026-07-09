@@ -1,5 +1,6 @@
 import PhotosUI
 import SwiftUI
+import UIKit
 
 struct AddVisitView: View {
     @Environment(\.dismiss) private var dismiss
@@ -8,17 +9,20 @@ struct AddVisitView: View {
     let onSave: (Visit) -> Void
     private let existingVisit: Visit?
 
+    @State private var title = ""
     @State private var visitedAt = Date()
     @State private var amountSpent = ""
     @State private var notes = ""
     @State private var review = Review()
     @State private var selectedPhotos: [PhotosPickerItem] = []
     @State private var photoNames: [String] = []
+    @State private var isSaving = false
 
     init(idea: DateIdea, visit: Visit? = nil, onSave: @escaping (Visit) -> Void) {
         self.idea = idea
         self.existingVisit = visit
         self.onSave = onSave
+        _title = State(initialValue: visit?.title ?? "")
         _visitedAt = State(initialValue: visit?.visitedAt ?? .now)
         _amountSpent = State(initialValue: visit?.amountSpent.map { String(describing: $0) } ?? "")
         _notes = State(initialValue: visit?.notes ?? "")
@@ -30,13 +34,24 @@ struct AddVisitView: View {
         NavigationStack {
             Form {
                 Section("Visit") {
+                    TextField("Title (optional, e.g. Anniversary dinner)", text: $title)
+
                     DatePicker("Date", selection: $visitedAt, displayedComponents: .date)
+
                     TextField("Amount spent", text: $amountSpent)
                         .keyboardType(.decimalPad)
+
                     TextField("Notes", text: $notes, axis: .vertical)
                         .lineLimit(3...6)
+
                     PhotosPicker(selection: $selectedPhotos, maxSelectionCount: 12, matching: .images) {
                         Label(photoLabel, systemImage: "photo.on.rectangle")
+                    }
+
+                    if !savedLocalPhotoNames.isEmpty {
+                        VisitPhotoStrip(photoNames: savedLocalPhotoNames, size: 64) { name in
+                            photoNames.removeAll { $0 == name }
+                        }
                     }
                 }
 
@@ -55,6 +70,7 @@ struct AddVisitView: View {
                     }
                 }
             }
+            .keyboardDismissal()
             .navigationTitle(existingVisit == nil ? "Add Visit" : "Edit Visit")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -65,26 +81,91 @@ struct AddVisitView: View {
 
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
-                        let spent = Decimal(string: amountSpent)
-                        let nextPhotoNames = photoNames + selectedPhotos.map { _ in UUID().uuidString }
-                        onSave(Visit(
-                            id: existingVisit?.id ?? UUID(),
-                            visitedAt: visitedAt,
-                            amountSpent: spent,
-                            notes: notes,
-                            photoNames: nextPhotoNames,
-                            review: review
-                        ))
-                        dismiss()
+                        Task {
+                            await save()
+                        }
                     }
+                    .disabled(isSaving)
                 }
             }
         }
+        .tint(Theme.accent)
     }
 
     private var photoLabel: String {
         let count = photoNames.count + selectedPhotos.count
-        return count == 0 ? "Photos" : "\(count) selected"
+        return count == 0 ? "Add photos" : "\(count) photo\(count == 1 ? "" : "s") selected"
+    }
+
+    private var savedLocalPhotoNames: [String] {
+        photoNames.filter { name in
+            guard let url = DateIdeaImageStore.fileURL(for: name) else { return false }
+            return FileManager.default.fileExists(atPath: url.path)
+        }
+    }
+
+    // Writes the picked images to disk so they can actually be shown later.
+    @MainActor
+    private func save() async {
+        isSaving = true
+        defer { isSaving = false }
+
+        var nextPhotoNames = photoNames
+        for item in selectedPhotos {
+            guard let data = try? await item.loadTransferable(type: Data.self),
+                  let name = DateIdeaImageStore.save(data: data) else { continue }
+            nextPhotoNames.append(name)
+        }
+
+        let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        onSave(Visit(
+            id: existingVisit?.id ?? UUID(),
+            title: trimmedTitle.isEmpty ? nil : trimmedTitle,
+            visitedAt: visitedAt,
+            amountSpent: Decimal(string: amountSpent),
+            notes: notes,
+            photoNames: nextPhotoNames,
+            review: review
+        ))
+        dismiss()
+    }
+}
+
+struct VisitPhotoStrip: View {
+    let photoNames: [String]
+    var size: CGFloat = 56
+    var onRemove: ((String) -> Void)?
+
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 6) {
+                ForEach(photoNames, id: \.self) { name in
+                    if let url = DateIdeaImageStore.fileURL(for: name),
+                       let image = UIImage(contentsOfFile: url.path) {
+                        Image(uiImage: image)
+                            .resizable()
+                            .scaledToFill()
+                            .frame(width: size, height: size)
+                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                            .overlay(alignment: .topTrailing) {
+                                if let onRemove {
+                                    Button {
+                                        onRemove(name)
+                                    } label: {
+                                        Image(systemName: "xmark.circle.fill")
+                                            .font(.footnote)
+                                            .foregroundStyle(.white, .black.opacity(0.55))
+                                    }
+                                    .buttonStyle(.plain)
+                                    .padding(3)
+                                    .accessibilityLabel("Remove photo")
+                                }
+                            }
+                            .accessibilityLabel("Visit photo")
+                    }
+                }
+            }
+        }
     }
 }
 

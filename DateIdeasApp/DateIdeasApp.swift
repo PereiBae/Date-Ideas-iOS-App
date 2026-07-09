@@ -36,6 +36,51 @@ extension Font {
     }
 }
 
+// Lets bottom-pinned bars hide while the keyboard is up instead of
+// floating above it (where they collide with the keyboard Done button).
+private struct KeyboardVisibilityObserver: ViewModifier {
+    @Binding var isVisible: Bool
+
+    func body(content: Content) -> some View {
+        content
+            .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
+                withAnimation(.smooth(duration: 0.2)) {
+                    isVisible = true
+                }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
+                withAnimation(.smooth(duration: 0.2)) {
+                    isVisible = false
+                }
+            }
+    }
+}
+
+extension View {
+    func observesKeyboardVisibility(_ isVisible: Binding<Bool>) -> some View {
+        modifier(KeyboardVisibilityObserver(isVisible: isVisible))
+    }
+
+    // Swipe-to-dismiss plus a Done button above the keyboard, for forms.
+    func keyboardDismissal() -> some View {
+        scrollDismissesKeyboard(.interactively)
+            .toolbar {
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+
+                    Button("Done") {
+                        UIApplication.shared.sendAction(
+                            #selector(UIResponder.resignFirstResponder),
+                            to: nil,
+                            from: nil,
+                            for: nil
+                        )
+                    }
+                }
+            }
+    }
+}
+
 @main
 struct DateIdeasApp: App {
     @StateObject private var store = DateIdeaStore()

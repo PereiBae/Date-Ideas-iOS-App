@@ -113,12 +113,12 @@ struct IdeaDetailView: View {
         }
         .sheet(isPresented: $showingVisitSheet) {
             AddVisitView(idea: currentIdea) { visit in
-                store.addVisit(visit, to: currentIdea)
+                store.addVisit(stampedWithContributor(visit), to: currentIdea)
             }
         }
         .sheet(item: $editingVisit) { visit in
             AddVisitView(idea: currentIdea, visit: visit) { updatedVisit in
-                store.updateVisit(updatedVisit, in: currentIdea)
+                store.updateVisit(stampedWithContributor(updatedVisit), in: currentIdea)
             }
         }
         .sheet(isPresented: $showingEditSheet) {
@@ -444,11 +444,23 @@ struct IdeaDetailView: View {
             }
         }
     }
+
+    // Records who logged the visit, so shared workbooks can show it.
+    private func stampedWithContributor(_ visit: Visit) -> Visit {
+        guard visit.addedByUserID == nil, let user = collaborationStore.currentUser else { return visit }
+
+        var stamped = visit
+        stamped.addedByUserID = user.id
+        stamped.addedByDisplayName = user.displayName
+        stamped.addedByPhotoURL = user.photoURL
+        return stamped
+    }
 }
 
 struct EditIdeaView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var idea: DateIdea
+    @State private var keyboardVisible = false
 
     let onSave: (DateIdea) -> Void
 
@@ -467,6 +479,7 @@ struct EditIdeaView: View {
                 foodSection
                 dealsSection
             }
+            .keyboardDismissal()
             .navigationTitle("Edit Place")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -477,9 +490,16 @@ struct EditIdeaView: View {
                 }
             }
             .safeAreaInset(edge: .bottom) {
-                saveBar
+                // Stays at the page bottom: hidden behind the keyboard while
+                // typing rather than floating above it.
+                if !keyboardVisible {
+                    saveBar
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
             }
+            .observesKeyboardVisibility($keyboardVisible)
         }
+        .tint(Theme.accent)
     }
 
     private var heroSection: some View {
@@ -517,6 +537,10 @@ struct EditIdeaView: View {
                         .tag(category)
                 }
             }
+            // Pushed list style: icons on every row, selection tick trailing.
+            .pickerStyle(.navigationLink)
+            // Keep row separators full width (Label rows shift them otherwise).
+            .alignmentGuide(.listRowSeparatorLeading) { _ in 0 }
 
             TextField("Summary", text: $idea.factualSummary, axis: .vertical)
                 .lineLimit(3...6)
@@ -659,8 +683,10 @@ struct DealEditorRows: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 14) {
             TextField("Deal title", text: $deal.title)
+                .font(.headline)
+
             TextField("Details", text: $deal.details, axis: .vertical)
                 .lineLimit(2...5)
 
@@ -671,6 +697,7 @@ struct DealEditorRows: View {
                     deal.startsAt = isOn ? (deal.startsAt ?? .now) : nil
                 }
             ))
+            .padding(.vertical, 2)
 
             if hasStartDate {
                 DatePicker("Starts", selection: Binding(
@@ -686,6 +713,7 @@ struct DealEditorRows: View {
                     deal.endsAt = isOn ? (deal.endsAt ?? .now) : nil
                 }
             ))
+            .padding(.vertical, 2)
 
             if hasEndDate {
                 DatePicker("Ends", selection: Binding(
@@ -733,16 +761,48 @@ struct PlaceMapView: View {
 }
 
 struct VisitRowView: View {
+    @EnvironmentObject private var collaborationStore: CollaborationStore
     let visit: Visit
+
+    private var contributorName: String? {
+        guard collaborationStore.activeWorkbook?.isPersonal == false else { return nil }
+        return visit.addedByDisplayName
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Text(visit.visitedAt, style: .date)
-                    .font(.headline)
+            HStack(alignment: .firstTextBaseline) {
+                VStack(alignment: .leading, spacing: 1) {
+                    if let title = visit.title, !title.isEmpty {
+                        Text(title)
+                            .font(.headline)
+
+                        Text(visit.visitedAt, style: .date)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Text(visit.visitedAt, style: .date)
+                            .font(.headline)
+                    }
+                }
+
                 Spacer()
+
                 Label(visit.review.overallScore.formatted(.number.precision(.fractionLength(1))), systemImage: "star.fill")
                     .foregroundStyle(.yellow)
+            }
+
+            if let contributorName {
+                HStack(spacing: 6) {
+                    ContributorAvatar(name: contributorName, imageURL: visit.addedByPhotoURL)
+                        .frame(width: 20, height: 20)
+
+                    Text("Visited by \(contributorName)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Visited by \(contributorName)")
             }
 
             if let amountSpent = visit.amountSpent {
@@ -756,8 +816,11 @@ struct VisitRowView: View {
                     .font(.subheadline)
             }
 
-            if !visit.photoNames.isEmpty {
-                Label("\(visit.photoNames.count) photos", systemImage: "photo.on.rectangle")
+            if !visit.localPhotoNames.isEmpty {
+                VisitPhotoStrip(photoNames: visit.localPhotoNames, size: 52)
+            } else if !visit.photoNames.isEmpty {
+                // Photo files live on the device that logged the visit.
+                Label("\(visit.photoNames.count) photo\(visit.photoNames.count == 1 ? "" : "s") on your partner's device", systemImage: "photo.on.rectangle")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

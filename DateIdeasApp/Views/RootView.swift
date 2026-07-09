@@ -68,6 +68,7 @@ struct RootView: View {
             NavigationStack {
                 IdeaDetailView(idea: idea)
             }
+            .tint(Theme.accent)
         }
         .sensoryFeedback(.success, trigger: store.saveConfirmation) { _, newValue in
             newValue != nil
@@ -273,6 +274,7 @@ struct SavedTabView: View {
                 }
                 .sheet(isPresented: $showingAccount) {
                     AccountWorkbookView()
+                        .tint(Theme.accent)
                         .environmentObject(collaborationStore)
                 }
                 .sheet(isPresented: $showingWorkbooks) {
@@ -286,6 +288,7 @@ struct SavedTabView: View {
                                 }
                             }
                     }
+                    .tint(Theme.accent)
                     .environmentObject(store)
                     .environmentObject(collaborationStore)
                 }
@@ -298,6 +301,7 @@ struct SavedTabView: View {
                             importText = ""
                         }
                     }
+                    .tint(Theme.accent)
                     .presentationDetents([.large])
                 }
         }
@@ -1049,6 +1053,9 @@ struct PlacesMapView: View {
     var body: some View {
         NavigationStack {
             Map(position: $position) {
+                // The blue current-location dot; appears once location is granted.
+                UserAnnotation()
+
                 ForEach(mappedIdeas) { idea in
                     if let coordinate = idea.mapCoordinate {
                         Annotation(idea.title, coordinate: coordinate) {
@@ -1069,6 +1076,9 @@ struct PlacesMapView: View {
                 MapUserLocationButton()
                 MapCompass()
             }
+            // MapKit elements (user-location dot, location button) stay system
+            // blue; our overlays are added after this so they keep the rosé tint.
+            .tint(.blue)
             .overlay {
                 if showingCategoryPicker {
                     Color.black.opacity(0.15)
@@ -1147,7 +1157,9 @@ struct PlacesMapView: View {
             .onChange(of: visitFilter) { dropSelectionIfHidden() }
             .onChange(of: selectedCategory) { dropSelectionIfHidden() }
             .task {
-                store.refreshUserLocationIfAuthorized()
+                // Opening the map is the contextual moment to ask for location
+                // (prompts only while permission is undetermined).
+                store.requestLocationForSorting()
             }
         }
     }

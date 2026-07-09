@@ -234,26 +234,48 @@ struct SourcePost: Identifiable, Codable, Hashable {
 
 struct Visit: Identifiable, Codable, Hashable {
     var id: UUID
+    // Optionals so visits saved before these fields existed still decode.
+    var title: String?
     var visitedAt: Date
     var amountSpent: Decimal?
     var notes: String
     var photoNames: [String]
     var review: Review
+    var addedByUserID: String?
+    var addedByDisplayName: String?
+    var addedByPhotoURL: URL?
 
     init(
         id: UUID = UUID(),
+        title: String? = nil,
         visitedAt: Date = .now,
         amountSpent: Decimal? = nil,
         notes: String = "",
         photoNames: [String] = [],
-        review: Review = Review()
+        review: Review = Review(),
+        addedByUserID: String? = nil,
+        addedByDisplayName: String? = nil,
+        addedByPhotoURL: URL? = nil
     ) {
         self.id = id
+        self.title = title
         self.visitedAt = visitedAt
         self.amountSpent = amountSpent
         self.notes = notes
         self.photoNames = photoNames
         self.review = review
+        self.addedByUserID = addedByUserID
+        self.addedByDisplayName = addedByDisplayName
+        self.addedByPhotoURL = addedByPhotoURL
+    }
+
+    // Photos are device-local files; on a partner's device the names exist
+    // but the files do not.
+    var localPhotoNames: [String] {
+        photoNames.filter { name in
+            guard let url = DateIdeaImageStore.fileURL(for: name) else { return false }
+            return FileManager.default.fileExists(atPath: url.path)
+        }
     }
 }
 

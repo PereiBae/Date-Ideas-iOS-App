@@ -211,19 +211,9 @@ struct IdeaRowView: View {
                 }
 
             VStack(alignment: .leading, spacing: 8) {
-                HStack(alignment: .firstTextBaseline) {
-                    Text(idea.title)
-                        .font(.placeTitle(.headline))
-                        .lineLimit(2)
-
-                    Spacer()
-
-                    if let score = idea.latestReview?.overallScore {
-                        Label(score.formatted(.number.precision(.fractionLength(1))), systemImage: "star.fill")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(.yellow)
-                    }
-                }
+                Text(idea.title)
+                    .font(.placeTitle(.headline))
+                    .lineLimit(2)
 
                 Text(idea.location.address)
                     .font(.subheadline)
@@ -255,17 +245,29 @@ struct IdeaRowView: View {
                             .lineLimit(1)
                     }
 
-                    Spacer()
+                    Spacer(minLength: 0)
+                }
+            }
 
-                    if idea.hasVisited {
-                        Image(systemName: "checkmark.circle.fill")
-                            .foregroundStyle(.green)
-                            .accessibilityLabel("Visited")
-                    }
+            // Status indicators live in one trailing column so the star and
+            // visited tick stay aligned.
+            VStack(alignment: .trailing, spacing: 8) {
+                if let score = idea.latestReview?.overallScore {
+                    Label(score.formatted(.number.precision(.fractionLength(1))), systemImage: "star.fill")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.yellow)
+                }
+
+                if idea.hasVisited {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(.green)
+                        .accessibilityLabel("Visited")
                 }
             }
         }
         .padding(.vertical, 6)
+        // Keep the row separator full width instead of starting at the text.
+        .alignmentGuide(.listRowSeparatorLeading) { _ in 0 }
     }
 }
 

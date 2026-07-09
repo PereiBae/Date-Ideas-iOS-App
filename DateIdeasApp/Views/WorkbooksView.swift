@@ -257,6 +257,7 @@ struct CreateWorkbookSheet: View {
                 }
             }
         }
+        .tint(Theme.accent)
         .presentationDetents([.medium])
     }
 }
@@ -312,6 +313,7 @@ struct JoinWorkbookSheet: View {
                 }
             }
         }
+        .tint(Theme.accent)
         .presentationDetents([.medium])
     }
 }
