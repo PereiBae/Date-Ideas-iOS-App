@@ -54,7 +54,7 @@ struct IdeaFilter: Equatable {
         activeCount > 0
     }
 
-    func matches(_ idea: DateIdea) -> Bool {
+    func matches(_ idea: DateIdea, currentUserID: String?) -> Bool {
         let categoryMatches = category.map { idea.category == $0 } ?? true
         let cuisineMatches = cuisineTag.map { tag in
             idea.cuisineTagNames.contains { $0.caseInsensitiveCompare(tag) == .orderedSame }
@@ -62,9 +62,9 @@ struct IdeaFilter: Equatable {
         let foodMatches = foodTag.map { tag in
             idea.foodTagNames.contains { $0.caseInsensitiveCompare(tag) == .orderedSame }
         } ?? true
-        let visitMatches = visitedOnly ? idea.hasVisited : true
+        let visitMatches = visitedOnly ? idea.hasBeenVisited(by: currentUserID) : true
         let reviewMatches = reviewMetric.map { metric in
-            guard let review = idea.latestReview else { return false }
+            guard let review = idea.latestReview(for: currentUserID) else { return false }
             return review.score(for: metric) >= minimumReviewScore
         } ?? true
         return categoryMatches && cuisineMatches && foodMatches && visitMatches && reviewMatches
@@ -153,6 +153,7 @@ final class DateIdeaStore: ObservableObject {
     }
     @Published private(set) var userLocation: CLLocation?
     @Published private(set) var locationDenied = false
+    @Published private(set) var currentUserID: String?
     private lazy var locationProvider = UserLocationProvider()
 
     private let storage: IdeaStorage
@@ -182,7 +183,11 @@ final class DateIdeaStore: ObservableObject {
     }
 
     var filteredIdeas: [DateIdea] {
-        sortedIdeas(ideas.filter(filter.matches))
+        sortedIdeas(ideas.filter { filter.matches($0, currentUserID: currentUserID) })
+    }
+
+    func setCurrentUserID(_ userID: String?) {
+        currentUserID = userID
     }
 
     func requestLocationForSorting() {
@@ -445,6 +450,10 @@ struct AppUser: Identifiable, Codable, Hashable {
         }
         return String(letters).uppercased()
     }
+
+    var isPlaceholderProfile: Bool {
+        displayName == "Member" || displayName == "Workbook member"
+    }
 }
 
 struct Workbook: Identifiable, Codable, Hashable {
@@ -496,9 +505,23 @@ enum CollaborationError: LocalizedError {
 
 @MainActor
 final class CollaborationStore: ObservableObject {
-    @Published private(set) var currentUser: AppUser?
+    @Published private(set) var currentUser: AppUser? {
+        didSet {
+            dateIdeaStore?.setCurrentUserID(currentUser?.id)
+        }
+    }
     @Published private(set) var workbooks: [Workbook] = []
-    @Published private(set) var activeWorkbook: Workbook?
+    @Published private(set) var activeWorkbook: Workbook? {
+        didSet {
+            guard oldValue?.id != activeWorkbook?.id || oldValue?.memberIDs != activeWorkbook?.memberIDs else { return }
+            activeWorkbookMembers = currentUser.map { [$0] } ?? []
+            guard activeWorkbook != nil else { return }
+            Task { [weak self] in
+                await self?.refreshActiveWorkbookMembers()
+            }
+        }
+    }
+    @Published private(set) var activeWorkbookMembers: [AppUser] = []
     @Published private(set) var isSyncing = false
     @Published var statusMessage: String?
     @Published var errorMessage: String?
@@ -548,6 +571,7 @@ final class CollaborationStore: ObservableObject {
 
     func attach(dateIdeaStore: DateIdeaStore) {
         self.dateIdeaStore = dateIdeaStore
+        dateIdeaStore.setCurrentUserID(currentUser?.id)
         dateIdeaStore.remoteSaveHandler = { [weak self] idea in
             await self?.saveIdeaToActiveWorkbook(idea)
         }
@@ -577,7 +601,10 @@ final class CollaborationStore: ObservableObject {
             observeWorkbooks(for: appUser.id)
             Task {
                 await performFirebaseAction("Could not load personal workbook.") {
-                    try await ensurePersonalWorkbook(for: appUser)
+                    let resolvedUser = await self.mergingStoredProfile(into: appUser)
+                    self.currentUser = resolvedUser
+                    try await self.upsertUser(resolvedUser)
+                    try await self.ensurePersonalWorkbook(for: resolvedUser)
                 }
             }
             statusMessage = "Loading your workbooks."
@@ -795,6 +822,7 @@ final class CollaborationStore: ObservableObject {
 
         var members: [AppUser] = []
         for memberID in workbook.memberIDs {
+            let inferredProfile = inferredMemberProfile(for: memberID)
             let document = Firestore.firestore().collection("users").document(memberID)
             if let snapshot = try? await Self.getDocument(document),
                let data = snapshot.data() {
@@ -802,12 +830,12 @@ final class CollaborationStore: ObservableObject {
                 let email = (data["email"] as? String)?.nilIfEmpty
                 members.append(AppUser(
                     id: memberID,
-                    displayName: displayName ?? email ?? "Member",
+                    displayName: displayName ?? inferredProfile?.displayName ?? email ?? "Member",
                     email: email,
-                    photoURL: (data["photoURL"] as? String).flatMap(URL.init(string:))
+                    photoURL: (data["photoURL"] as? String).flatMap(URL.init(string:)) ?? inferredProfile?.photoURL
                 ))
             } else {
-                members.append(AppUser(id: memberID, displayName: "Member", email: nil, photoURL: nil))
+                members.append(inferredProfile ?? AppUser(id: memberID, displayName: "Member", email: nil, photoURL: nil))
             }
         }
 
@@ -823,14 +851,62 @@ final class CollaborationStore: ObservableObject {
 #endif
     }
 
-    // Records who logged a visit, so shared workbooks can show it.
-    func stampedVisit(_ visit: Visit) -> Visit {
-        guard visit.addedByUserID == nil, let user = currentUser else { return visit }
+    private func inferredMemberProfile(for userID: String) -> AppUser? {
+        if let idea = dateIdeaStore?.ideas.first(where: {
+            $0.createdByUserID == userID && $0.createdByDisplayName?.nilIfEmpty != nil
+        }), let displayName = idea.createdByDisplayName?.nilIfEmpty {
+            return AppUser(
+                id: userID,
+                displayName: displayName,
+                email: nil,
+                photoURL: idea.createdByPhotoURL
+            )
+        }
 
+        for idea in dateIdeaStore?.ideas ?? [] {
+            if let visit = idea.visits.first(where: {
+                $0.createdByUserID == userID && $0.createdByDisplayName?.nilIfEmpty != nil
+            }), let displayName = visit.createdByDisplayName?.nilIfEmpty {
+                return AppUser(
+                    id: userID,
+                    displayName: displayName,
+                    email: nil,
+                    photoURL: visit.createdByPhotoURL
+                )
+            }
+        }
+        return nil
+    }
+
+    func refreshActiveWorkbookMembers() async {
+        guard let workbook = activeWorkbook else {
+            activeWorkbookMembers = []
+            return
+        }
+
+        if workbook.isPersonal, let currentUser {
+            activeWorkbookMembers = [currentUser]
+            return
+        }
+
+        let members = await fetchMembers(of: workbook)
+        guard activeWorkbook?.id == workbook.id else { return }
+        activeWorkbookMembers = members
+    }
+
+    // Records who logged a visit separately from who attended it.
+    func stampedVisit(_ visit: Visit) -> Visit {
         var stamped = visit
-        stamped.addedByUserID = user.id
-        stamped.addedByDisplayName = user.displayName
-        stamped.addedByPhotoURL = user.photoURL
+        guard let user = currentUser else { return stamped }
+
+        if stamped.createdByUserID == nil {
+            stamped.createdByUserID = user.id
+            stamped.createdByDisplayName = user.displayName
+            stamped.createdByPhotoURL = user.photoURL
+        }
+        if stamped.participantUserIDs.isEmpty {
+            stamped.participantUserIDs = [user.id]
+        }
         return stamped
     }
 
@@ -878,12 +954,12 @@ final class CollaborationStore: ObservableObject {
 
             var copy = idea
             copy.id = UUID()
+            copy.visits = []
+            copy.createdAt = .now
             copy.updatedAt = .now
-            if copy.createdByUserID == nil {
-                copy.createdByUserID = user.id
-                copy.createdByDisplayName = user.displayName
-                copy.createdByPhotoURL = user.photoURL
-            }
+            copy.createdByUserID = user.id
+            copy.createdByDisplayName = user.displayName
+            copy.createdByPhotoURL = user.photoURL
 
             let document = Firestore.firestore()
                 .collection("workbooks")
@@ -928,13 +1004,14 @@ final class CollaborationStore: ObservableObject {
 
     private func finishSignIn(user: AppUser, status: String) async throws {
 #if canImport(FirebaseFirestore) && canImport(FirebaseAuth) && canImport(FirebaseCore)
-        currentUser = user
+        let resolvedUser = await mergingStoredProfile(into: user)
+        currentUser = resolvedUser
         activeWorkbook = nil
         workbooks = []
         dateIdeaStore?.clearIdeasForRemoteLoad()
-        try await upsertUser(user)
-        observeWorkbooks(for: user.id)
-        try await ensurePersonalWorkbook(for: user)
+        try await upsertUser(resolvedUser)
+        observeWorkbooks(for: resolvedUser.id)
+        try await ensurePersonalWorkbook(for: resolvedUser)
         statusMessage = status
 #else
         throw CollaborationError.firebaseUnavailable
@@ -1052,6 +1129,13 @@ final class CollaborationStore: ObservableObject {
                         Self.dateIdea(from: document.data())
                     } ?? []
                     self.dateIdeaStore?.replaceIdeasFromRemote(remoteIdeas)
+
+                    if self.activeWorkbookMembers.count < workbook.memberIDs.count
+                        || self.activeWorkbookMembers.contains(where: \.isPlaceholderProfile) {
+                        Task {
+                            await self.refreshActiveWorkbookMembers()
+                        }
+                    }
                 }
             }
 #endif
@@ -1070,6 +1154,27 @@ final class CollaborationStore: ObservableObject {
         try await Self.setData(Self.dictionary(from: user), at: document)
 #else
         throw CollaborationError.firebaseUnavailable
+#endif
+    }
+
+    private func mergingStoredProfile(into user: AppUser) async -> AppUser {
+#if canImport(FirebaseFirestore) && canImport(FirebaseAuth) && canImport(FirebaseCore)
+        guard isFirebaseConfigured else { return user }
+        let document = Firestore.firestore().collection("users").document(user.id)
+        guard let snapshot = try? await Self.getDocument(document),
+              let data = snapshot.data() else { return user }
+
+        let storedDisplayName = (data["displayName"] as? String)?.nilIfEmpty
+        let storedEmail = (data["email"] as? String)?.nilIfEmpty
+        let storedPhotoURL = (data["photoURL"] as? String).flatMap(URL.init(string:))
+        return AppUser(
+            id: user.id,
+            displayName: storedDisplayName ?? user.displayName,
+            email: user.email ?? storedEmail,
+            photoURL: user.photoURL ?? storedPhotoURL
+        )
+#else
+        return user
 #endif
     }
 

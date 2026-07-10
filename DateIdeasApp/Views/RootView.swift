@@ -1023,7 +1023,7 @@ struct PlacesMapView: View {
     private var mappedIdeas: [DateIdea] {
         store.ideas.filter { idea in
             let hasCoordinate = idea.location.latitude != nil && idea.location.longitude != nil
-            let visitMatches = visitFilter.matches(idea)
+            let visitMatches = visitFilter.matches(idea, currentUserID: store.currentUserID)
             let categoryMatches = selectedCategory.map { idea.category == $0 } ?? true
             return hasCoordinate && visitMatches && categoryMatches
         }
@@ -1060,7 +1060,10 @@ struct PlacesMapView: View {
                                     selectedIdeaID = selectedIdeaID == idea.id ? nil : idea.id
                                 }
                             } label: {
-                                WorkbookMapPin(isVisited: idea.hasVisited, isSelected: idea.id == selectedIdeaID)
+                                WorkbookMapPin(
+                                    isVisited: idea.hasBeenVisited(by: store.currentUserID),
+                                    isSelected: idea.id == selectedIdeaID
+                                )
                             }
                             .buttonStyle(.plain)
                         }
@@ -1362,7 +1365,7 @@ struct PlacesMapView: View {
                         } label: {
                             HStack(spacing: 10) {
                                 Circle()
-                                    .fill(idea.hasVisited ? Color.green : Color.red)
+                                    .fill(idea.hasBeenVisited(by: store.currentUserID) ? Color.green : Color.red)
                                     .frame(width: 10, height: 10)
 
                                 VStack(alignment: .leading, spacing: 1) {
@@ -1398,7 +1401,7 @@ struct PlacesMapView: View {
 
     private func selectSearchResult(_ idea: DateIdea) {
         // Clear any filter that would hide the picked place's pin.
-        if !visitFilter.matches(idea) {
+        if !visitFilter.matches(idea, currentUserID: store.currentUserID) {
             visitFilter = .all
         }
         if let selectedCategory, selectedCategory != idea.category {
@@ -1464,19 +1467,20 @@ enum MapVisitFilter: String, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
-    func matches(_ idea: DateIdea) -> Bool {
+    func matches(_ idea: DateIdea, currentUserID: String?) -> Bool {
         switch self {
         case .all:
             return true
         case .wantToGo:
-            return !idea.hasVisited
+            return !idea.hasBeenVisited(by: currentUserID)
         case .visited:
-            return idea.hasVisited
+            return idea.hasBeenVisited(by: currentUserID)
         }
     }
 }
 
 struct MapPreviewCard: View {
+    @EnvironmentObject private var store: DateIdeaStore
     let idea: DateIdea
     let distanceText: String?
     let onDismiss: () -> Void
@@ -1489,10 +1493,14 @@ struct MapPreviewCard: View {
     }
 
     private var statusText: String {
-        let base = idea.hasVisited ? "Visited" : "Want to go"
+        let base = isVisited ? "Visited" : "Want to go"
         let dealCount = idea.activeDeals.count
         guard dealCount > 0 else { return base }
         return "\(base) · \(dealCount) active deal\(dealCount == 1 ? "" : "s")"
+    }
+
+    private var isVisited: Bool {
+        idea.hasBeenVisited(by: store.currentUserID)
     }
 
     var body: some View {
@@ -1513,9 +1521,9 @@ struct MapPreviewCard: View {
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
 
-                    Label(statusText, systemImage: idea.hasVisited ? "checkmark.circle.fill" : "heart.fill")
+                    Label(statusText, systemImage: isVisited ? "checkmark.circle.fill" : "heart.fill")
                         .font(.caption2.weight(.medium))
-                        .foregroundStyle(idea.hasVisited ? Color.green : Color.red)
+                        .foregroundStyle(isVisited ? Color.green : Color.red)
                         .lineLimit(1)
                 }
 

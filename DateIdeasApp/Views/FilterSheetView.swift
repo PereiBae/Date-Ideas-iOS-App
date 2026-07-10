@@ -12,7 +12,7 @@ struct FilterSheetView: View {
     }
 
     private var matchCount: Int {
-        store.ideas.filter(draft.matches).count
+        store.ideas.filter { draft.matches($0, currentUserID: store.currentUserID) }.count
     }
 
     var body: some View {

@@ -4,6 +4,7 @@ import UIKit
 
 struct AddVisitView: View {
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var collaborationStore: CollaborationStore
 
     let idea: DateIdea
     let onSave: (Visit) -> Void
@@ -16,6 +17,8 @@ struct AddVisitView: View {
     @State private var review = Review()
     @State private var selectedPhotos: [PhotosPickerItem] = []
     @State private var photoNames: [String] = []
+    @State private var participantUserIDs: Set<String> = []
+    @State private var isLoadingMembers = false
     @State private var isSaving = false
 
     init(idea: DateIdea, visit: Visit? = nil, onSave: @escaping (Visit) -> Void) {
@@ -28,6 +31,7 @@ struct AddVisitView: View {
         _notes = State(initialValue: visit?.notes ?? "")
         _review = State(initialValue: visit?.review ?? Review())
         _photoNames = State(initialValue: visit?.photoNames ?? [])
+        _participantUserIDs = State(initialValue: Set(visit?.effectiveParticipantUserIDs ?? []))
     }
 
     var body: some View {
@@ -53,6 +57,10 @@ struct AddVisitView: View {
                             photoNames.removeAll { $0 == name }
                         }
                     }
+                }
+
+                if collaborationStore.activeWorkbook?.isPersonal == false {
+                    participantsSection
                 }
 
                 Section("Review") {
@@ -85,11 +93,54 @@ struct AddVisitView: View {
                             await save()
                         }
                     }
-                    .disabled(isSaving)
+                    .disabled(isSaving || participantUserIDs.isEmpty)
                 }
             }
         }
         .tint(Theme.accent)
+        .task(id: collaborationStore.activeWorkbook?.id) {
+            await prepareParticipants()
+        }
+    }
+
+    @ViewBuilder
+    private var participantsSection: some View {
+        Section {
+            if isLoadingMembers && participantMembers.isEmpty {
+                HStack {
+                    Spacer()
+                    ProgressView()
+                    Spacer()
+                }
+            } else {
+                ForEach(participantMembers) { member in
+                    Button {
+                        toggleParticipant(member.id)
+                    } label: {
+                        HStack(spacing: 12) {
+                            ContributorAvatar(name: member.displayName, imageURL: member.photoURL, size: 34)
+
+                            Text(member.id == collaborationStore.currentUser?.id ? "\(member.displayName) (You)" : member.displayName)
+                                .foregroundStyle(.primary)
+
+                            Spacer()
+
+                            Image(systemName: participantUserIDs.contains(member.id) ? "checkmark.circle.fill" : "circle")
+                                .font(.title3)
+                                .foregroundStyle(participantUserIDs.contains(member.id) ? Color.accentColor : Color.secondary)
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(member.displayName)
+                    .accessibilityValue(participantUserIDs.contains(member.id) ? "Attending" : "Not attending")
+                }
+            }
+        } header: {
+            Text("Who went?")
+        } footer: {
+            Text("Visited status and ratings are personal to the people selected here.")
+        }
     }
 
     private var photoLabel: String {
@@ -101,6 +152,62 @@ struct AddVisitView: View {
         photoNames.filter { name in
             guard let url = DateIdeaImageStore.fileURL(for: name) else { return false }
             return FileManager.default.fileExists(atPath: url.path)
+        }
+    }
+
+    private var participantMembers: [AppUser] {
+        var members = collaborationStore.activeWorkbookMembers.map { member in
+            guard member.isPlaceholderProfile,
+                  member.id == existingVisit?.createdByUserID,
+                  let rawName = existingVisit?.createdByDisplayName else { return member }
+            let name = rawName.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !name.isEmpty else { return member }
+            return AppUser(
+                id: member.id,
+                displayName: name,
+                email: member.email,
+                photoURL: existingVisit?.createdByPhotoURL ?? member.photoURL
+            )
+        }
+        if let currentUser = collaborationStore.currentUser,
+           !members.contains(where: { $0.id == currentUser.id }) {
+            members.insert(currentUser, at: 0)
+        }
+
+        for participantID in participantUserIDs where !members.contains(where: { $0.id == participantID }) {
+            if participantID == existingVisit?.createdByUserID,
+               let name = existingVisit?.createdByDisplayName {
+                members.append(AppUser(
+                    id: participantID,
+                    displayName: name,
+                    email: nil,
+                    photoURL: existingVisit?.createdByPhotoURL
+                ))
+            } else {
+                members.append(AppUser(id: participantID, displayName: "Workbook member", email: nil, photoURL: nil))
+            }
+        }
+        return members
+    }
+
+    @MainActor
+    private func prepareParticipants() async {
+        if participantUserIDs.isEmpty, let currentUserID = collaborationStore.currentUser?.id {
+            participantUserIDs.insert(currentUserID)
+        }
+
+        guard collaborationStore.activeWorkbook?.isPersonal == false else { return }
+        isLoadingMembers = true
+        await collaborationStore.refreshActiveWorkbookMembers()
+        isLoadingMembers = false
+    }
+
+    private func toggleParticipant(_ userID: String) {
+        if participantUserIDs.contains(userID) {
+            guard participantUserIDs.count > 1 else { return }
+            participantUserIDs.remove(userID)
+        } else {
+            participantUserIDs.insert(userID)
         }
     }
 
@@ -125,7 +232,11 @@ struct AddVisitView: View {
             amountSpent: Decimal(string: amountSpent),
             notes: notes,
             photoNames: nextPhotoNames,
-            review: review
+            review: review,
+            createdByUserID: existingVisit?.createdByUserID,
+            createdByDisplayName: existingVisit?.createdByDisplayName,
+            createdByPhotoURL: existingVisit?.createdByPhotoURL,
+            participantUserIDs: Array(participantUserIDs)
         ))
         dismiss()
     }
@@ -186,22 +297,16 @@ struct VisitDetailView: View {
         store.ideas.first { $0.id == idea.id }?.visits.first { $0.id == visit.id } ?? visit
     }
 
-    private var contributorName: String? {
-        guard collaborationStore.activeWorkbook?.isPersonal == false else { return nil }
-        return currentVisit.addedByDisplayName
-    }
-
     var body: some View {
         NavigationStack {
             List {
                 headerSection
+                photosSection
                 ratingSection
 
                 if currentVisit.amountSpent != nil || !currentVisit.notes.isEmpty {
                     detailsSection
                 }
-
-                photosSection
             }
             .navigationTitle("Visit")
             .navigationBarTitleDisplayMode(.inline)
@@ -246,16 +351,8 @@ struct VisitDetailView: View {
                         .font(.title3.weight(.semibold))
                 }
 
-                if let contributorName {
-                    HStack(spacing: 6) {
-                        ContributorAvatar(name: contributorName, imageURL: currentVisit.addedByPhotoURL, size: 18)
-
-                        Text("Visited by \(contributorName)")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    .accessibilityElement(children: .ignore)
-                    .accessibilityLabel("Visited by \(contributorName)")
+                if collaborationStore.activeWorkbook?.isPersonal == false {
+                    VisitParticipantsView(visit: currentVisit)
                 }
             }
             .padding(.vertical, 2)
@@ -341,6 +438,86 @@ struct VisitDetailView: View {
                     .foregroundStyle(.secondary)
             }
         }
+    }
+}
+
+struct VisitParticipantsView: View {
+    @EnvironmentObject private var collaborationStore: CollaborationStore
+    let visit: Visit
+    var avatarSize: CGFloat = 18
+
+    private var participants: [AppUser] {
+        visit.effectiveParticipantUserIDs.map { userID in
+            if userID == collaborationStore.currentUser?.id, let currentUser = collaborationStore.currentUser {
+                return currentUser
+            }
+            let cachedMember = collaborationStore.activeWorkbookMembers.first(where: { $0.id == userID })
+            if let cachedMember, !cachedMember.isPlaceholderProfile {
+                return cachedMember
+            }
+            if userID == visit.createdByUserID,
+               let rawName = visit.createdByDisplayName {
+                let name = rawName.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !name.isEmpty else {
+                    return cachedMember ?? AppUser(
+                        id: userID,
+                        displayName: "Workbook member",
+                        email: nil,
+                        photoURL: nil
+                    )
+                }
+                return AppUser(
+                    id: userID,
+                    displayName: name,
+                    email: cachedMember?.email,
+                    photoURL: visit.createdByPhotoURL ?? cachedMember?.photoURL
+                )
+            }
+            if let cachedMember {
+                return cachedMember
+            }
+            return AppUser(id: userID, displayName: "Workbook member", email: nil, photoURL: nil)
+        }
+    }
+
+    var body: some View {
+        if !participants.isEmpty {
+            HStack(spacing: 7) {
+                HStack(spacing: -5) {
+                    ForEach(participants.prefix(3)) { participant in
+                        ContributorAvatar(name: participant.displayName, imageURL: participant.photoURL, size: avatarSize)
+                            .overlay {
+                                Circle().strokeBorder(Color(.systemBackground), lineWidth: 1.5)
+                            }
+                    }
+                }
+
+                Text(summary)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(summary)
+        }
+    }
+
+    private var summary: String {
+        let currentUserID = collaborationStore.currentUser?.id
+        let includesCurrentUser = visit.includesParticipant(currentUserID)
+        let otherNames = participants
+            .filter { $0.id != currentUserID }
+            .map(\.displayName)
+
+        if includesCurrentUser {
+            if otherNames.isEmpty { return "You visited" }
+            if otherNames.count == 1 { return "You and \(otherNames[0]) visited" }
+            return "You and \(otherNames.count) others visited"
+        }
+
+        guard let firstName = otherNames.first else { return "Visit participants unavailable" }
+        if otherNames.count == 1 { return "Visited by \(firstName)" }
+        if otherNames.count == 2 { return "Visited by \(firstName) and \(otherNames[1])" }
+        return "Visited by \(firstName) and \(otherNames.count - 1) others"
     }
 }
 

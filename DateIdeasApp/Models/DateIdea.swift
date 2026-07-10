@@ -234,16 +234,18 @@ struct SourcePost: Identifiable, Codable, Hashable {
 
 struct Visit: Identifiable, Codable, Hashable {
     var id: UUID
-    // Optionals so visits saved before these fields existed still decode.
     var title: String?
     var visitedAt: Date
     var amountSpent: Decimal?
     var notes: String
     var photoNames: [String]
     var review: Review
-    var addedByUserID: String?
-    var addedByDisplayName: String?
-    var addedByPhotoURL: URL?
+    // Creator and attendees are separate: a person can log a visit for
+    // everyone who went without making every workbook member "visited".
+    var createdByUserID: String?
+    var createdByDisplayName: String?
+    var createdByPhotoURL: URL?
+    var participantUserIDs: [String]
 
     init(
         id: UUID = UUID(),
@@ -253,9 +255,10 @@ struct Visit: Identifiable, Codable, Hashable {
         notes: String = "",
         photoNames: [String] = [],
         review: Review = Review(),
-        addedByUserID: String? = nil,
-        addedByDisplayName: String? = nil,
-        addedByPhotoURL: URL? = nil
+        createdByUserID: String? = nil,
+        createdByDisplayName: String? = nil,
+        createdByPhotoURL: URL? = nil,
+        participantUserIDs: [String] = []
     ) {
         self.id = id
         self.title = title
@@ -264,9 +267,86 @@ struct Visit: Identifiable, Codable, Hashable {
         self.notes = notes
         self.photoNames = photoNames
         self.review = review
-        self.addedByUserID = addedByUserID
-        self.addedByDisplayName = addedByDisplayName
-        self.addedByPhotoURL = addedByPhotoURL
+        self.createdByUserID = createdByUserID
+        self.createdByDisplayName = createdByDisplayName
+        self.createdByPhotoURL = createdByPhotoURL
+        self.participantUserIDs = Array(Set(participantUserIDs)).sorted()
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case title
+        case visitedAt
+        case amountSpent
+        case notes
+        case photoNames
+        case review
+        case createdByUserID
+        case createdByDisplayName
+        case createdByPhotoURL
+        case participantUserIDs
+        // Compatibility with visits written before creator/participants were split.
+        case addedByUserID
+        case addedByDisplayName
+        case addedByPhotoURL
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+
+        id = try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+        title = try container.decodeIfPresent(String.self, forKey: .title)
+        visitedAt = try container.decodeIfPresent(Date.self, forKey: .visitedAt) ?? .now
+        amountSpent = try container.decodeIfPresent(Decimal.self, forKey: .amountSpent)
+        notes = try container.decodeIfPresent(String.self, forKey: .notes) ?? ""
+        photoNames = try container.decodeIfPresent([String].self, forKey: .photoNames) ?? []
+        review = try container.decodeIfPresent(Review.self, forKey: .review) ?? Review()
+        createdByUserID = try container.decodeIfPresent(String.self, forKey: .createdByUserID)
+            ?? container.decodeIfPresent(String.self, forKey: .addedByUserID)
+        createdByDisplayName = try container.decodeIfPresent(String.self, forKey: .createdByDisplayName)
+            ?? container.decodeIfPresent(String.self, forKey: .addedByDisplayName)
+        createdByPhotoURL = try container.decodeIfPresent(URL.self, forKey: .createdByPhotoURL)
+            ?? container.decodeIfPresent(URL.self, forKey: .addedByPhotoURL)
+
+        let decodedParticipants = try container.decodeIfPresent([String].self, forKey: .participantUserIDs) ?? []
+        if decodedParticipants.isEmpty, let createdByUserID {
+            participantUserIDs = [createdByUserID]
+        } else {
+            participantUserIDs = Array(Set(decodedParticipants)).sorted()
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+
+        try container.encode(id, forKey: .id)
+        try container.encodeIfPresent(title, forKey: .title)
+        try container.encode(visitedAt, forKey: .visitedAt)
+        try container.encodeIfPresent(amountSpent, forKey: .amountSpent)
+        try container.encode(notes, forKey: .notes)
+        try container.encode(photoNames, forKey: .photoNames)
+        try container.encode(review, forKey: .review)
+        try container.encodeIfPresent(createdByUserID, forKey: .createdByUserID)
+        try container.encodeIfPresent(createdByDisplayName, forKey: .createdByDisplayName)
+        try container.encodeIfPresent(createdByPhotoURL, forKey: .createdByPhotoURL)
+        try container.encode(effectiveParticipantUserIDs, forKey: .participantUserIDs)
+
+        // Keep older builds able to display the visit author during rollout.
+        try container.encodeIfPresent(createdByUserID, forKey: .addedByUserID)
+        try container.encodeIfPresent(createdByDisplayName, forKey: .addedByDisplayName)
+        try container.encodeIfPresent(createdByPhotoURL, forKey: .addedByPhotoURL)
+    }
+
+    var effectiveParticipantUserIDs: [String] {
+        if !participantUserIDs.isEmpty {
+            return participantUserIDs
+        }
+        return createdByUserID.map { [$0] } ?? []
+    }
+
+    func includesParticipant(_ userID: String?) -> Bool {
+        guard let userID else { return false }
+        return effectiveParticipantUserIDs.contains(userID)
     }
 
     // Photos are device-local files; on a partner's device the names exist
@@ -542,8 +622,12 @@ struct DateIdea: Identifiable, Codable, Hashable {
         try container.encode(updatedAt, forKey: .updatedAt)
     }
 
-    var hasVisited: Bool {
-        !visits.isEmpty
+    func visits(for userID: String?) -> [Visit] {
+        visits.filter { $0.includesParticipant(userID) }
+    }
+
+    func hasBeenVisited(by userID: String?) -> Bool {
+        visits.contains { $0.includesParticipant(userID) }
     }
 
     var activeDeals: [Deal] {
@@ -569,8 +653,8 @@ struct DateIdea: Identifiable, Codable, Hashable {
         (cuisineTagNames + foodTagNames).uniqueCaseInsensitive()
     }
 
-    var latestReview: Review? {
-        visits.sorted { $0.visitedAt > $1.visitedAt }.first?.review
+    func latestReview(for userID: String?) -> Review? {
+        visits(for: userID).max { $0.visitedAt < $1.visitedAt }?.review
     }
 
     var duplicateKey: String {

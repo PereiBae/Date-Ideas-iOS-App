@@ -251,13 +251,13 @@ struct IdeaRowView: View {
             // Status indicators live in one trailing column so the star and
             // visited tick stay aligned.
             VStack(alignment: .trailing, spacing: 8) {
-                if let score = idea.latestReview?.overallScore {
+                if let score = idea.latestReview(for: collaborationStore.currentUser?.id)?.overallScore {
                     Label(score.formatted(.number.precision(.fractionLength(1))), systemImage: "star.fill")
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.yellow)
                 }
 
-                if idea.hasVisited {
+                if idea.hasBeenVisited(by: collaborationStore.currentUser?.id) {
                     Image(systemName: "checkmark.circle.fill")
                         .foregroundStyle(.green)
                         .accessibilityLabel("Visited")

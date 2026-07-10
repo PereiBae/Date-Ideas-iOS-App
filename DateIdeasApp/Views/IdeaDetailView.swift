@@ -20,6 +20,10 @@ struct IdeaDetailView: View {
         store.ideas.first(where: { $0.id == idea.id }) ?? idea
     }
 
+    private var currentUserHasVisited: Bool {
+        currentIdea.hasBeenVisited(by: store.currentUserID)
+    }
+
     private var otherWorkbooks: [Workbook] {
         guard collaborationStore.canUseFirebase else { return [] }
         return collaborationStore.workbooks.filter { $0.id != collaborationStore.activeWorkbook?.id }
@@ -180,14 +184,14 @@ struct IdeaDetailView: View {
 
     private var statusBadge: some View {
         Label(
-            currentIdea.hasVisited ? "Visited" : "Want to go",
-            systemImage: currentIdea.hasVisited ? "checkmark.circle.fill" : "heart.fill"
+            currentUserHasVisited ? "Visited" : "Want to go",
+            systemImage: currentUserHasVisited ? "checkmark.circle.fill" : "heart.fill"
         )
         .font(.caption.weight(.semibold))
         .foregroundStyle(.white)
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
-        .background(currentIdea.hasVisited ? Color.green : Color.red, in: Capsule())
+        .background(currentUserHasVisited ? Color.green : Color.red, in: Capsule())
     }
 
     private var categoryBadge: some View {
@@ -398,6 +402,15 @@ struct IdeaDetailView: View {
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             } else {
+                if !currentUserHasVisited, collaborationStore.activeWorkbook?.isPersonal == false {
+                    Label(
+                        "You haven't visited yet. Visits from workbook members are shown below.",
+                        systemImage: "person.2"
+                    )
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                }
+
                 ForEach(currentIdea.visits) { visit in
                     Button {
                         viewingVisit = visit
@@ -782,11 +795,6 @@ struct VisitRowView: View {
     @EnvironmentObject private var collaborationStore: CollaborationStore
     let visit: Visit
 
-    private var contributorName: String? {
-        guard collaborationStore.activeWorkbook?.isPersonal == false else { return nil }
-        return visit.addedByDisplayName
-    }
-
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .firstTextBaseline) {
@@ -810,16 +818,8 @@ struct VisitRowView: View {
                     .foregroundStyle(.yellow)
             }
 
-            if let contributorName {
-                HStack(spacing: 6) {
-                    ContributorAvatar(name: contributorName, imageURL: visit.addedByPhotoURL, size: 16)
-
-                    Text("Visited by \(contributorName)")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel("Visited by \(contributorName)")
+            if collaborationStore.activeWorkbook?.isPersonal == false {
+                VisitParticipantsView(visit: visit, avatarSize: 16)
             }
 
             if let amountSpent = visit.amountSpent {
