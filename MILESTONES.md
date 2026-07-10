@@ -1,5 +1,21 @@
 # UI Redesign Milestones
 
+## Workbook members + visit detail (2026-07-08) ✅
+- Workbook members: the active shared workbook card's member row opens
+  `WorkbookMembersSheet` — avatars, display name (email fallback), email
+  subtitle, and a rosé "You" badge. Profiles load per-member from the `users`
+  collection via `CollaborationStore.fetchMembers(of:)` (+ `getDocument`
+  continuation helper); current user sorts first. Personal workbooks show no
+  members UI.
+- Visit detail: tapping a visit now opens read-only `VisitDetailView`
+  (AddVisitView.swift) — title/date, "Visited by" line, overall score,
+  per-metric star rows (`RatingDisplayRow`), spent, notes, photo grid with
+  tap-to-enlarge `fullScreenCover` (`VisitPhotoFullScreenView`); partner-device
+  photos noted gracefully. Toolbar Edit opens the existing AddVisitView edit
+  flow; the underlying data refreshes live after saving. Visit rows on the
+  place page gained a chevron affordance. Contributor stamping centralized as
+  `CollaborationStore.stampedVisit(_:)`.
+
 ## Flexible tag system (2026-07-08) ✅
 - Cuisine/food tags are now free-form strings (`DateIdea.cuisineTagNames` /
   `foodTagNames`); establishment type stays the controlled IdeaCategory enum.

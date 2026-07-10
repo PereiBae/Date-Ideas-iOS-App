@@ -5,6 +5,7 @@ struct WorkbooksView: View {
     @EnvironmentObject private var collaborationStore: CollaborationStore
     @State private var showingCreate = false
     @State private var showingJoin = false
+    @State private var membersWorkbook: Workbook?
 
     var body: some View {
         ScrollView {
@@ -23,7 +24,10 @@ struct WorkbooksView: View {
                         workbook: workbook,
                         isActive: workbook.id == collaborationStore.activeWorkbook?.id,
                         ideaCount: workbook.id == collaborationStore.activeWorkbook?.id ? store.ideas.count : nil,
-                        currentUser: collaborationStore.currentUser
+                        currentUser: collaborationStore.currentUser,
+                        onShowMembers: workbook.isPersonal ? nil : {
+                            membersWorkbook = workbook
+                        }
                     ) {
                         collaborationStore.selectWorkbook(workbook)
                     }
@@ -71,6 +75,11 @@ struct WorkbooksView: View {
             JoinWorkbookSheet()
                 .environmentObject(collaborationStore)
         }
+        .sheet(item: $membersWorkbook) { workbook in
+            WorkbookMembersSheet(workbook: workbook)
+                .tint(Theme.accent)
+                .environmentObject(collaborationStore)
+        }
     }
 }
 
@@ -79,6 +88,7 @@ struct WorkbookCard: View {
     let isActive: Bool
     let ideaCount: Int?
     let currentUser: AppUser?
+    var onShowMembers: (() -> Void)?
     let onSelect: () -> Void
 
     private var subtitle: String {
@@ -131,14 +141,37 @@ struct WorkbookCard: View {
                 }
             }
 
-            HStack(spacing: 8) {
-                if !workbook.isPersonal {
-                    memberAvatars
-                }
+            // On the active shared card the member row opens the members list.
+            // (Inactive cards are buttons themselves, so no nested button there.)
+            if isActive, let onShowMembers {
+                Button(action: onShowMembers) {
+                    HStack(spacing: 8) {
+                        if !workbook.isPersonal {
+                            memberAvatars
+                        }
 
-                Text(subtitle)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                        Text(subtitle)
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+
+                        Image(systemName: "chevron.right")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.tertiary)
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("View members")
+            } else {
+                HStack(spacing: 8) {
+                    if !workbook.isPersonal {
+                        memberAvatars
+                    }
+
+                    Text(subtitle)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
             }
 
             if isActive && workbook.isShareable {
@@ -206,6 +239,80 @@ struct WorkbookCard: View {
             return "You are the only member"
         }
         return "Members: you and \(others) other\(others == 1 ? "" : "s")"
+    }
+}
+
+struct WorkbookMembersSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var collaborationStore: CollaborationStore
+    let workbook: Workbook
+    @State private var members: [AppUser] = []
+    @State private var isLoading = true
+
+    var body: some View {
+        NavigationStack {
+            List {
+                if isLoading {
+                    HStack {
+                        Spacer()
+                        ProgressView()
+                        Spacer()
+                    }
+                } else if members.isEmpty {
+                    Text("Members could not be loaded. Check your connection and try again.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(members) { member in
+                        memberRow(member)
+                    }
+                }
+            }
+            .navigationTitle(workbook.name)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                }
+            }
+            .task {
+                members = await collaborationStore.fetchMembers(of: workbook)
+                isLoading = false
+            }
+        }
+        .presentationDetents([.medium, .large])
+    }
+
+    private func memberRow(_ member: AppUser) -> some View {
+        HStack(spacing: 12) {
+            ContributorAvatar(name: member.displayName, imageURL: member.photoURL, size: 40)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(member.displayName)
+                    .font(.body.weight(.medium))
+
+                if let email = member.email, email != member.displayName {
+                    Text(email)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            Spacer()
+
+            if member.id == collaborationStore.currentUser?.id {
+                Text("You")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Color.accentColor)
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 4)
+                    .background(Color.accentColor.opacity(0.12), in: Capsule())
+            }
+        }
+        .padding(.vertical, 2)
+        .accessibilityElement(children: .combine)
     }
 }
 

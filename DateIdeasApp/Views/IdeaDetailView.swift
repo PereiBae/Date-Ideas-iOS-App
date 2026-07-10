@@ -9,7 +9,7 @@ struct IdeaDetailView: View {
     @State private var showingVisitSheet = false
     @State private var showingDeleteConfirmation = false
     @State private var showingEditSheet = false
-    @State private var editingVisit: Visit?
+    @State private var viewingVisit: Visit?
     @State private var copiedWorkbookName: String?
     @State private var placeDetailItem: MKMapItem?
     @State private var isLoadingPlaceDetail = false
@@ -115,13 +115,11 @@ struct IdeaDetailView: View {
         }
         .sheet(isPresented: $showingVisitSheet) {
             AddVisitView(idea: currentIdea) { visit in
-                store.addVisit(stampedWithContributor(visit), to: currentIdea)
+                store.addVisit(collaborationStore.stampedVisit(visit), to: currentIdea)
             }
         }
-        .sheet(item: $editingVisit) { visit in
-            AddVisitView(idea: currentIdea, visit: visit) { updatedVisit in
-                store.updateVisit(stampedWithContributor(updatedVisit), in: currentIdea)
-            }
+        .sheet(item: $viewingVisit) { visit in
+            VisitDetailView(idea: currentIdea, visit: visit)
         }
         .sheet(isPresented: $showingEditSheet) {
             EditIdeaView(idea: currentIdea) { updatedIdea in
@@ -402,9 +400,16 @@ struct IdeaDetailView: View {
             } else {
                 ForEach(currentIdea.visits) { visit in
                     Button {
-                        editingVisit = visit
+                        viewingVisit = visit
                     } label: {
-                        VisitRowView(visit: visit)
+                        HStack(spacing: 10) {
+                            VisitRowView(visit: visit)
+
+                            Image(systemName: "chevron.right")
+                                .font(.footnote.weight(.semibold))
+                                .foregroundStyle(.tertiary)
+                        }
+                        .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
                 }
@@ -489,16 +494,6 @@ struct IdeaDetailView: View {
         }
     }
 
-    // Records who logged the visit, so shared workbooks can show it.
-    private func stampedWithContributor(_ visit: Visit) -> Visit {
-        guard visit.addedByUserID == nil, let user = collaborationStore.currentUser else { return visit }
-
-        var stamped = visit
-        stamped.addedByUserID = user.id
-        stamped.addedByDisplayName = user.displayName
-        stamped.addedByPhotoURL = user.photoURL
-        return stamped
-    }
 }
 
 struct EditIdeaView: View {

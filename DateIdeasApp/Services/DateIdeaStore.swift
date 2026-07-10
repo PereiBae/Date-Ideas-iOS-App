@@ -787,6 +787,53 @@ final class CollaborationStore: ObservableObject {
         }
     }
 
+    // Loads member profiles for a workbook from the users collection
+    // (written by upsertUser at sign-in). Current user sorts first.
+    func fetchMembers(of workbook: Workbook) async -> [AppUser] {
+#if canImport(FirebaseFirestore) && canImport(FirebaseAuth) && canImport(FirebaseCore)
+        guard isFirebaseConfigured else { return [] }
+
+        var members: [AppUser] = []
+        for memberID in workbook.memberIDs {
+            let document = Firestore.firestore().collection("users").document(memberID)
+            if let snapshot = try? await Self.getDocument(document),
+               let data = snapshot.data() {
+                let displayName = (data["displayName"] as? String)?.nilIfEmpty
+                let email = (data["email"] as? String)?.nilIfEmpty
+                members.append(AppUser(
+                    id: memberID,
+                    displayName: displayName ?? email ?? "Member",
+                    email: email,
+                    photoURL: (data["photoURL"] as? String).flatMap(URL.init(string:))
+                ))
+            } else {
+                members.append(AppUser(id: memberID, displayName: "Member", email: nil, photoURL: nil))
+            }
+        }
+
+        let currentUserID = currentUser?.id
+        return members.sorted { lhs, rhs in
+            if (lhs.id == currentUserID) != (rhs.id == currentUserID) {
+                return lhs.id == currentUserID
+            }
+            return lhs.displayName.localizedCaseInsensitiveCompare(rhs.displayName) == .orderedAscending
+        }
+#else
+        return []
+#endif
+    }
+
+    // Records who logged a visit, so shared workbooks can show it.
+    func stampedVisit(_ visit: Visit) -> Visit {
+        guard visit.addedByUserID == nil, let user = currentUser else { return visit }
+
+        var stamped = visit
+        stamped.addedByUserID = user.id
+        stamped.addedByDisplayName = user.displayName
+        stamped.addedByPhotoURL = user.photoURL
+        return stamped
+    }
+
     func selectWorkbook(_ workbook: Workbook?) {
         activeWorkbook = workbook
         if let workbook {
@@ -1137,6 +1184,20 @@ private extension CollaborationStore {
                     continuation.resume(throwing: error)
                 } else {
                     continuation.resume(returning: ())
+                }
+            }
+        }
+    }
+
+    static func getDocument(_ document: DocumentReference) async throws -> DocumentSnapshot {
+        try await withCheckedThrowingContinuation { continuation in
+            document.getDocument { snapshot, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                } else if let snapshot {
+                    continuation.resume(returning: snapshot)
+                } else {
+                    continuation.resume(throwing: CollaborationError.invalidSnapshot)
                 }
             }
         }
