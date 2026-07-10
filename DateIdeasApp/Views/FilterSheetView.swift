@@ -106,8 +106,8 @@ struct FilterSheetView: View {
             sectionTitle("Cuisine")
 
             FlowLayout(spacing: 8) {
-                ForEach(store.availableCuisineTags) { tag in
-                    FilterChip(title: tag.rawValue, isSelected: draft.cuisineTag == tag) {
+                ForEach(store.availableCuisineTags, id: \.self) { tag in
+                    FilterChip(title: tag, isSelected: draft.cuisineTag == tag) {
                         draft.cuisineTag = draft.cuisineTag == tag ? nil : tag
                     }
                 }
@@ -120,8 +120,8 @@ struct FilterSheetView: View {
             sectionTitle("Food")
 
             FlowLayout(spacing: 8) {
-                ForEach(store.availableFoodTags) { tag in
-                    FilterChip(title: tag.rawValue, isSelected: draft.foodTag == tag) {
+                ForEach(store.availableFoodTags, id: \.self) { tag in
+                    FilterChip(title: tag, isSelected: draft.foodTag == tag) {
                         draft.foodTag = draft.foodTag == tag ? nil : tag
                     }
                 }

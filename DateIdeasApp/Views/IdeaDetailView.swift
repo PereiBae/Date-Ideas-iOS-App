@@ -11,6 +11,8 @@ struct IdeaDetailView: View {
     @State private var showingEditSheet = false
     @State private var editingVisit: Visit?
     @State private var copiedWorkbookName: String?
+    @State private var placeDetailItem: MKMapItem?
+    @State private var isLoadingPlaceDetail = false
 
     let idea: DateIdea
 
@@ -126,6 +128,7 @@ struct IdeaDetailView: View {
                 store.updateIdea(updatedIdea)
             }
         }
+        .mapItemDetailSheet(item: $placeDetailItem)
     }
 
     // MARK: Hero
@@ -212,9 +215,8 @@ struct IdeaDetailView: View {
                 }
 
                 if let contributor = currentIdea.createdByDisplayName {
-                    HStack(spacing: 8) {
-                        ContributorAvatar(name: contributor, imageURL: currentIdea.createdByPhotoURL)
-                            .frame(width: 22, height: 22)
+                    HStack(spacing: 6) {
+                        ContributorAvatar(name: contributor, imageURL: currentIdea.createdByPhotoURL, size: 18)
 
                         Text("Added by \(contributor) · \(currentIdea.createdAt.formatted(date: .abbreviated, time: .omitted))")
                             .font(.caption)
@@ -344,6 +346,48 @@ struct IdeaDetailView: View {
                     .foregroundStyle(.secondary)
             }
             .padding(.vertical, 4)
+
+            Button {
+                showPlaceDetails()
+            } label: {
+                HStack {
+                    Label("Opening hours & info", systemImage: "clock")
+
+                    Spacer()
+
+                    if isLoadingPlaceDetail {
+                        ProgressView()
+                    } else {
+                        Image(systemName: "chevron.right")
+                            .font(.footnote.weight(.semibold))
+                            .foregroundStyle(.tertiary)
+                    }
+                }
+            }
+            .disabled(isLoadingPlaceDetail)
+        }
+    }
+
+    // Looks the place up in Apple Maps and presents its place card
+    // (opening hours, photos, phone) via MapKit's place detail sheet.
+    private func showPlaceDetails() {
+        guard !isLoadingPlaceDetail else { return }
+        isLoadingPlaceDetail = true
+
+        Task {
+            defer { isLoadingPlaceDetail = false }
+
+            let request = MKLocalSearch.Request()
+            request.naturalLanguageQuery = "\(currentIdea.title), \(currentIdea.location.address)"
+            if let latitude = currentIdea.location.latitude, let longitude = currentIdea.location.longitude {
+                request.region = MKCoordinateRegion(
+                    center: CLLocationCoordinate2D(latitude: latitude, longitude: longitude),
+                    span: MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02)
+                )
+            }
+
+            let response = try? await MKLocalSearch(request: request).start()
+            placeDetailItem = response?.mapItems.first
         }
     }
 
@@ -559,27 +603,13 @@ struct EditIdeaView: View {
 
     private var cuisineSection: some View {
         Section("Cuisine") {
-            FlowLayout(spacing: 8) {
-                ForEach(CuisineTag.allCases) { tag in
-                    FilterChip(title: tag.rawValue, isSelected: idea.cuisineTags.contains(tag)) {
-                        toggle(tag, in: &idea.cuisineTags)
-                    }
-                }
-            }
-            .padding(.vertical, 4)
+            EditableTagChips(tags: $idea.cuisineTagNames, addPrompt: "Add a cuisine (e.g. Korean)")
         }
     }
 
     private var foodSection: some View {
         Section("Food items") {
-            FlowLayout(spacing: 8) {
-                ForEach(FoodTag.allCases) { tag in
-                    FilterChip(title: tag.rawValue, isSelected: idea.foodTags.contains(tag)) {
-                        toggle(tag, in: &idea.foodTags)
-                    }
-                }
-            }
-            .padding(.vertical, 4)
+            EditableTagChips(tags: $idea.foodTagNames, addPrompt: "Add a dish or drink (e.g. Ramyun)")
         }
     }
 
@@ -626,13 +656,6 @@ struct EditIdeaView: View {
         dismiss()
     }
 
-    private func toggle<Tag: Equatable>(_ tag: Tag, in tags: inout [Tag]) {
-        if tags.contains(tag) {
-            tags.removeAll { $0 == tag }
-        } else {
-            tags.append(tag)
-        }
-    }
 }
 
 struct TagPill: View {
@@ -794,8 +817,7 @@ struct VisitRowView: View {
 
             if let contributorName {
                 HStack(spacing: 6) {
-                    ContributorAvatar(name: contributorName, imageURL: visit.addedByPhotoURL)
-                        .frame(width: 20, height: 20)
+                    ContributorAvatar(name: contributorName, imageURL: visit.addedByPhotoURL, size: 16)
 
                     Text("Visited by \(contributorName)")
                         .font(.caption)

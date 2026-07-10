@@ -10,7 +10,7 @@ struct ImportSessionSheet: View {
                     store.saveDraft(reviewedDraft)
                 }
             } else {
-                ExtractionProgressView(stage: store.importStage ?? .fetchingCaption)
+                ExtractionProgressView(stage: store.importStage ?? .fetchingCaption, preview: store.streamingPreview)
             }
         }
         .animation(.smooth(duration: 0.3), value: store.pendingDraft != nil)
@@ -23,6 +23,7 @@ struct ExtractionProgressView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let stage: ImportStage
+    var preview: ExtractionPreview?
     @State private var shimmering = false
 
     private var stageIndex: Int {
@@ -122,30 +123,46 @@ struct ExtractionProgressView: View {
 
     private var skeletonFields: some View {
         VStack(alignment: .leading, spacing: 16) {
-            RoundedRectangle(cornerRadius: 12)
-                .fill(.quaternary)
-                .frame(height: 140)
+            if preview == nil || preview?.isEmpty == true {
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(.quaternary)
+                    .frame(height: 140)
+                    .opacity(shimmerOpacity)
+                    .accessibilityHidden(true)
+            }
 
-            skeletonField(label: "Name", value: "A lovely place somewhere")
-            skeletonField(label: "Location", value: "12 Placeholder Road, Singapore")
-            skeletonField(label: "Summary", value: "A short factual summary of the place appears here once extraction finishes.")
+            // Fields fill in live as Apple Intelligence streams them.
+            streamedField(label: "Name", value: preview?.name, placeholder: "A lovely place somewhere")
+            streamedField(label: "Location", value: preview?.address, placeholder: "12 Placeholder Road, Singapore")
+            streamedField(label: "Summary", value: preview?.summary, placeholder: "A short factual summary of the place appears here once extraction finishes.")
         }
         .padding(.vertical, 4)
-        .redacted(reason: .placeholder)
-        .opacity(reduceMotion ? 0.6 : (shimmering ? 0.4 : 0.9))
-        .animation(reduceMotion ? nil : .easeInOut(duration: 0.9).repeatForever(autoreverses: true), value: shimmering)
-        .accessibilityHidden(true)
+        .animation(.smooth(duration: 0.25), value: preview)
     }
 
-    private func skeletonField(label: String, value: String) -> some View {
+    private var shimmerOpacity: Double {
+        reduceMotion ? 0.6 : (shimmering ? 0.4 : 0.9)
+    }
+
+    @ViewBuilder
+    private func streamedField(label: String, value: String?, placeholder: String) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(label)
                 .font(.caption)
                 .foregroundStyle(.secondary)
-                .unredacted()
 
-            Text(value)
-                .font(.body)
+            if let value, !value.isEmpty {
+                Text(value)
+                    .font(.body)
+                    .contentTransition(.interpolate)
+            } else {
+                Text(placeholder)
+                    .font(.body)
+                    .redacted(reason: .placeholder)
+                    .opacity(shimmerOpacity)
+                    .animation(reduceMotion ? nil : .easeInOut(duration: 0.9).repeatForever(autoreverses: true), value: shimmering)
+                    .accessibilityHidden(true)
+            }
         }
     }
 }
@@ -180,7 +197,7 @@ struct ImportReviewView: View {
             if !idea.title.isEmpty { fields.insert(.title) }
             if !idea.factualSummary.isEmpty { fields.insert(.summary) }
             if !idea.location.address.isEmpty { fields.insert(.address) }
-            if !idea.cuisineTags.isEmpty || !idea.foodTags.isEmpty { fields.insert(.tags) }
+            if !idea.cuisineTagNames.isEmpty || !idea.foodTagNames.isEmpty { fields.insert(.tags) }
             if !idea.deals.isEmpty { fields.insert(.deals) }
         }
         _aiFields = State(initialValue: fields)
@@ -220,8 +237,8 @@ struct ImportReviewView: View {
             .onChange(of: draft.extractedIdea.category) { aiFields.remove(.category) }
             .onChange(of: draft.extractedIdea.factualSummary) { aiFields.remove(.summary) }
             .onChange(of: draft.extractedIdea.location.address) { aiFields.remove(.address) }
-            .onChange(of: draft.extractedIdea.cuisineTags) { aiFields.remove(.tags) }
-            .onChange(of: draft.extractedIdea.foodTags) { aiFields.remove(.tags) }
+            .onChange(of: draft.extractedIdea.cuisineTagNames) { aiFields.remove(.tags) }
+            .onChange(of: draft.extractedIdea.foodTagNames) { aiFields.remove(.tags) }
             .onChange(of: draft.extractedIdea.deals) { aiFields.remove(.deals) }
         }
     }
@@ -300,14 +317,7 @@ struct ImportReviewView: View {
 
     private var cuisineSection: some View {
         Section {
-            FlowLayout(spacing: 8) {
-                ForEach(CuisineTag.allCases) { tag in
-                    FilterChip(title: tag.rawValue, isSelected: draft.extractedIdea.cuisineTags.contains(tag)) {
-                        toggle(tag, in: &draft.extractedIdea.cuisineTags)
-                    }
-                }
-            }
-            .padding(.vertical, 4)
+            EditableTagChips(tags: $draft.extractedIdea.cuisineTagNames, addPrompt: "Add a cuisine (e.g. Korean)")
         } header: {
             sectionHeader("Cuisine", aiField: .tags)
         }
@@ -315,14 +325,7 @@ struct ImportReviewView: View {
 
     private var foodSection: some View {
         Section {
-            FlowLayout(spacing: 8) {
-                ForEach(FoodTag.allCases) { tag in
-                    FilterChip(title: tag.rawValue, isSelected: draft.extractedIdea.foodTags.contains(tag)) {
-                        toggle(tag, in: &draft.extractedIdea.foodTags)
-                    }
-                }
-            }
-            .padding(.vertical, 4)
+            EditableTagChips(tags: $draft.extractedIdea.foodTagNames, addPrompt: "Add a dish or drink (e.g. Ramyun)")
         } header: {
             sectionHeader("Food items", aiField: .tags)
         }
@@ -450,12 +453,69 @@ struct ImportReviewView: View {
         dismiss()
     }
 
-    private func toggle<Tag: Equatable>(_ tag: Tag, in tags: inout [Tag]) {
-        if tags.contains(tag) {
-            tags.removeAll { $0 == tag }
-        } else {
+}
+
+// Removable tag chips with an inline field to add new free-form tags.
+struct EditableTagChips: View {
+    @Binding var tags: [String]
+    let addPrompt: String
+    @State private var newTag = ""
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            if !tags.isEmpty {
+                FlowLayout(spacing: 8) {
+                    ForEach(tags, id: \.self) { tag in
+                        Button {
+                            tags.removeAll { $0 == tag }
+                        } label: {
+                            HStack(spacing: 5) {
+                                Text(tag)
+                                    .font(.subheadline.weight(.medium))
+
+                                Image(systemName: "xmark")
+                                    .font(.caption2.weight(.semibold))
+                                    .foregroundStyle(.secondary)
+                            }
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 7)
+                            .foregroundStyle(Color.accentColor)
+                            .background(Color.accentColor.opacity(0.12), in: Capsule())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Remove tag \(tag)")
+                    }
+                }
+            }
+
+            HStack(spacing: 8) {
+                TextField(addPrompt, text: $newTag)
+                    .autocorrectionDisabled()
+                    .submitLabel(.done)
+                    .onSubmit(addTag)
+
+                Button(action: addTag) {
+                    Image(systemName: "plus.circle.fill")
+                        .font(.title3)
+                }
+                .buttonStyle(.borderless)
+                .disabled(newTag.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .accessibilityLabel("Add tag")
+            }
+        }
+        .padding(.vertical, 4)
+    }
+
+    private func addTag() {
+        guard let tag = PlaceTagNormalizer.normalizeSingle(newTag) else {
+            newTag = ""
+            return
+        }
+
+        if !tags.contains(where: { $0.caseInsensitiveCompare(tag) == .orderedSame }) {
             tags.append(tag)
         }
+        newTag = ""
     }
 }
 

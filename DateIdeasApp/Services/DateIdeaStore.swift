@@ -38,8 +38,8 @@ enum IdeaSortOrder: String, CaseIterable, Identifiable {
 
 struct IdeaFilter: Equatable {
     var category: IdeaCategory?
-    var cuisineTag: CuisineTag?
-    var foodTag: FoodTag?
+    var cuisineTag: String?
+    var foodTag: String?
     var visitedOnly = false
     var reviewMetric: ReviewMetric?
     var minimumReviewScore = 4.0
@@ -56,8 +56,12 @@ struct IdeaFilter: Equatable {
 
     func matches(_ idea: DateIdea) -> Bool {
         let categoryMatches = category.map { idea.category == $0 } ?? true
-        let cuisineMatches = cuisineTag.map { idea.cuisineTags.contains($0) } ?? true
-        let foodMatches = foodTag.map { idea.foodTags.contains($0) } ?? true
+        let cuisineMatches = cuisineTag.map { tag in
+            idea.cuisineTagNames.contains { $0.caseInsensitiveCompare(tag) == .orderedSame }
+        } ?? true
+        let foodMatches = foodTag.map { tag in
+            idea.foodTagNames.contains { $0.caseInsensitiveCompare(tag) == .orderedSame }
+        } ?? true
         let visitMatches = visitedOnly ? idea.hasVisited : true
         let reviewMatches = reviewMetric.map { metric in
             guard let review = idea.latestReview else { return false }
@@ -136,6 +140,7 @@ final class DateIdeaStore: ObservableObject {
     @Published private(set) var ideas: [DateIdea]
     @Published var pendingDraft: ImportDraft?
     @Published private(set) var importStage: ImportStage?
+    @Published private(set) var streamingPreview: ExtractionPreview?
     @Published var saveConfirmation: SaveConfirmation?
     private var importGeneration = 0
     @Published var filter = IdeaFilter()
@@ -230,12 +235,15 @@ final class DateIdeaStore: ObservableObject {
             }
     }
 
-    var availableCuisineTags: [CuisineTag] {
-        Array(Set(ideas.flatMap(\.cuisineTags))).sorted { $0.rawValue < $1.rawValue }
+    // Flexible tags actually used by places in the current workbook.
+    var availableCuisineTags: [String] {
+        PlaceTagNormalizer.normalize(ideas.flatMap(\.cuisineTagNames))
+            .sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
     }
 
-    var availableFoodTags: [FoodTag] {
-        Array(Set(ideas.flatMap(\.foodTags))).sorted { $0.rawValue < $1.rawValue }
+    var availableFoodTags: [String] {
+        PlaceTagNormalizer.normalize(ideas.flatMap(\.foodTagNames))
+            .sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
     }
 
     func importLink(_ rawValue: String) async {
@@ -255,6 +263,7 @@ final class DateIdeaStore: ObservableObject {
     func cancelImport() {
         importGeneration += 1
         importStage = nil
+        streamingPreview = nil
         pendingDraft = nil
     }
 
@@ -262,15 +271,25 @@ final class DateIdeaStore: ObservableObject {
         importGeneration += 1
         let generation = importGeneration
         importStage = .fetchingCaption
+        streamingPreview = nil
 
-        let draft = await extractor.extract(from: url, supplementalText: supplementalText) { [weak self] stage in
-            guard let self, generation == self.importGeneration, self.importStage != nil else { return }
-            self.importStage = stage
-        }
+        let draft = await extractor.extract(
+            from: url,
+            supplementalText: supplementalText,
+            onStage: { [weak self] stage in
+                guard let self, generation == self.importGeneration, self.importStage != nil else { return }
+                self.importStage = stage
+            },
+            onPartial: { [weak self] preview in
+                guard let self, generation == self.importGeneration, self.importStage != nil else { return }
+                self.streamingPreview = preview
+            }
+        )
 
         // The user may have dismissed the extraction sheet mid-flight.
         guard generation == importGeneration, importStage != nil else { return }
         importStage = nil
+        streamingPreview = nil
         pendingDraft = draft
     }
 
@@ -292,8 +311,8 @@ final class DateIdeaStore: ObservableObject {
             existing.deals.append(contentsOf: nextIdea.deals)
             existing.sourcePosts.append(contentsOf: nextIdea.sourcePosts)
             existing.tags = Array(Set(existing.tags + nextIdea.tags)).sorted { $0.rawValue < $1.rawValue }
-            existing.cuisineTags = Array(Set(existing.cuisineTags + nextIdea.cuisineTags)).sorted { $0.rawValue < $1.rawValue }
-            existing.foodTags = Array(Set(existing.foodTags + nextIdea.foodTags)).sorted { $0.rawValue < $1.rawValue }
+            existing.cuisineTagNames = PlaceTagNormalizer.normalize(existing.cuisineTagNames + nextIdea.cuisineTagNames)
+            existing.foodTagNames = PlaceTagNormalizer.normalize(existing.foodTagNames + nextIdea.foodTagNames)
 
             if existing.notes.isEmpty {
                 existing.notes = nextIdea.notes

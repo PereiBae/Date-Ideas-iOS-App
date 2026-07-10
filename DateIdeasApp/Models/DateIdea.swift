@@ -328,13 +328,71 @@ enum ReviewMetric: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 }
 
+// Cleans free-form tag strings coming from Apple Intelligence, the fallback
+// parser, or user input: trims junk, applies aliases, and dedupes.
+enum PlaceTagNormalizer {
+    private static let aliases: [String: String] = [
+        "ramyeon": "Ramyun",
+        "korean ramen": "Ramyun",
+        "1 for 1": "1-for-1"
+    ]
+
+    private static let rejectedWords: Set<String> = [
+        "food", "foodie", "delicious", "yummy", "tasty", "singapore", "sg",
+        "must try", "viral", "instagram", "tiktok", "fyp", "date idea", "hidden gem"
+    ]
+
+    static func normalize(_ rawTags: [String]) -> [String] {
+        var seen = Set<String>()
+        var result: [String] = []
+
+        for raw in rawTags {
+            guard let tag = normalizeSingle(raw) else { continue }
+            let key = tag.lowercased()
+            guard !seen.contains(key) else { continue }
+            seen.insert(key)
+            result.append(tag)
+        }
+
+        return result
+    }
+
+    static func normalizeSingle(_ raw: String) -> String? {
+        var value = raw
+            .replacingOccurrences(of: "#", with: " ")
+            .replacingOccurrences(of: "@", with: " ")
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard !value.isEmpty, value.count <= 28 else { return nil }
+
+        let lower = value.lowercased()
+        if let alias = aliases[lower] {
+            return alias
+        }
+        guard !rejectedWords.contains(lower) else { return nil }
+
+        // Title-case fully lowercase tags; keep deliberate casing as typed.
+        if value == lower {
+            value = value
+                .split(separator: " ")
+                .map { $0.prefix(1).uppercased() + $0.dropFirst() }
+                .joined(separator: " ")
+        }
+
+        return value
+    }
+}
+
 struct DateIdea: Identifiable, Codable, Hashable {
     var id: UUID
     var title: String
     var category: IdeaCategory
     var tags: [IdeaTag]
-    var cuisineTags: [CuisineTag]
-    var foodTags: [FoodTag]
+    // Free-form tag strings (AI-suggested + user-edited). The old CuisineTag/
+    // FoodTag enums remain only as a decode/encode bridge for existing data.
+    var cuisineTagNames: [String]
+    var foodTagNames: [String]
     var location: PlaceLocation
     var factualSummary: String
     var notes: String
@@ -354,8 +412,8 @@ struct DateIdea: Identifiable, Codable, Hashable {
         title: String,
         category: IdeaCategory,
         tags: [IdeaTag] = [],
-        cuisineTags: [CuisineTag] = [],
-        foodTags: [FoodTag] = [],
+        cuisineTagNames: [String] = [],
+        foodTagNames: [String] = [],
         location: PlaceLocation,
         factualSummary: String,
         notes: String = "",
@@ -374,8 +432,8 @@ struct DateIdea: Identifiable, Codable, Hashable {
         self.title = title
         self.category = category
         self.tags = tags
-        self.cuisineTags = cuisineTags
-        self.foodTags = foodTags
+        self.cuisineTagNames = PlaceTagNormalizer.normalize(cuisineTagNames)
+        self.foodTagNames = PlaceTagNormalizer.normalize(foodTagNames)
         self.location = location
         self.factualSummary = factualSummary
         self.notes = notes
@@ -398,6 +456,8 @@ struct DateIdea: Identifiable, Codable, Hashable {
         case tags
         case cuisineTags
         case foodTags
+        case cuisineTagNames
+        case foodTagNames
         case location
         case factualSummary
         case notes
@@ -420,8 +480,25 @@ struct DateIdea: Identifiable, Codable, Hashable {
         title = try container.decode(String.self, forKey: .title)
         category = try container.decode(IdeaCategory.self, forKey: .category)
         tags = try container.decodeIfPresent([IdeaTag].self, forKey: .tags) ?? []
-        cuisineTags = try container.decodeIfPresent([CuisineTag].self, forKey: .cuisineTags) ?? Self.cuisineTags(fromLegacyTags: tags, category: category)
-        foodTags = try container.decodeIfPresent([FoodTag].self, forKey: .foodTags) ?? Self.foodTags(fromLegacyTags: tags, category: category)
+
+        // Old data stored enum raw values under cuisineTags/foodTags — those
+        // raw values are display strings, so merge them into the new arrays.
+        let legacyCuisine = (try? container.decodeIfPresent([String].self, forKey: .cuisineTags)) ?? []
+        let legacyFood = (try? container.decodeIfPresent([String].self, forKey: .foodTags)) ?? []
+        let newCuisine = try container.decodeIfPresent([String].self, forKey: .cuisineTagNames) ?? []
+        let newFood = try container.decodeIfPresent([String].self, forKey: .foodTagNames) ?? []
+        var mergedCuisine = PlaceTagNormalizer.normalize(newCuisine + legacyCuisine)
+        var mergedFood = PlaceTagNormalizer.normalize(newFood + legacyFood)
+
+        if mergedCuisine.isEmpty, category == .dessertShop || tags.contains(.dessert) {
+            mergedCuisine = [CuisineTag.dessert.rawValue]
+        }
+        if mergedFood.isEmpty, category == .dessertShop || tags.contains(.dessert) {
+            mergedFood = [FoodTag.desserts.rawValue]
+        }
+
+        cuisineTagNames = mergedCuisine
+        foodTagNames = mergedFood
         location = try container.decode(PlaceLocation.self, forKey: .location)
         factualSummary = try container.decode(String.self, forKey: .factualSummary)
         notes = try container.decodeIfPresent(String.self, forKey: .notes) ?? ""
@@ -435,6 +512,34 @@ struct DateIdea: Identifiable, Codable, Hashable {
         createdByPhotoURL = try container.decodeIfPresent(URL.self, forKey: .createdByPhotoURL)
         createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt) ?? .now
         updatedAt = try container.decodeIfPresent(Date.self, forKey: .updatedAt) ?? createdAt
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+
+        try container.encode(id, forKey: .id)
+        try container.encode(title, forKey: .title)
+        try container.encode(category, forKey: .category)
+        try container.encode(tags, forKey: .tags)
+        try container.encode(cuisineTagNames, forKey: .cuisineTagNames)
+        try container.encode(foodTagNames, forKey: .foodTagNames)
+        // Also write enum-compatible values under the legacy keys so app
+        // versions before the flexible-tag change can still decode this place.
+        try container.encode(cuisineTagNames.compactMap { CuisineTag(rawValue: $0) }, forKey: .cuisineTags)
+        try container.encode(foodTagNames.compactMap { FoodTag(rawValue: $0) }, forKey: .foodTags)
+        try container.encode(location, forKey: .location)
+        try container.encode(factualSummary, forKey: .factualSummary)
+        try container.encode(notes, forKey: .notes)
+        try container.encodeIfPresent(imageName, forKey: .imageName)
+        try container.encodeIfPresent(imageURL, forKey: .imageURL)
+        try container.encode(deals, forKey: .deals)
+        try container.encode(sourcePosts, forKey: .sourcePosts)
+        try container.encode(visits, forKey: .visits)
+        try container.encodeIfPresent(createdByUserID, forKey: .createdByUserID)
+        try container.encodeIfPresent(createdByDisplayName, forKey: .createdByDisplayName)
+        try container.encodeIfPresent(createdByPhotoURL, forKey: .createdByPhotoURL)
+        try container.encode(createdAt, forKey: .createdAt)
+        try container.encode(updatedAt, forKey: .updatedAt)
     }
 
     var hasVisited: Bool {
@@ -461,7 +566,7 @@ struct DateIdea: Identifiable, Codable, Hashable {
     }
 
     var displayTagTitles: [String] {
-        (cuisineTags.map(\.rawValue) + foodTags.map(\.rawValue)).uniqueCaseInsensitive()
+        (cuisineTagNames + foodTagNames).uniqueCaseInsensitive()
     }
 
     var latestReview: Review? {
@@ -475,21 +580,6 @@ struct DateIdea: Identifiable, Codable, Hashable {
             .replacingOccurrences(of: ",", with: "")
     }
 
-    private static func cuisineTags(fromLegacyTags tags: [IdeaTag], category: IdeaCategory) -> [CuisineTag] {
-        var values: [CuisineTag] = []
-        if category == .dessertShop || tags.contains(.dessert) {
-            values.append(.dessert)
-        }
-        return values
-    }
-
-    private static func foodTags(fromLegacyTags tags: [IdeaTag], category: IdeaCategory) -> [FoodTag] {
-        var values: [FoodTag] = []
-        if category == .dessertShop || tags.contains(.dessert) {
-            values.append(.desserts)
-        }
-        return values
-    }
 }
 
 private extension Array where Element == String {

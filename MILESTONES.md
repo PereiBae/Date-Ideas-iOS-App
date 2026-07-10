@@ -1,5 +1,43 @@
 # UI Redesign Milestones
 
+## Flexible tag system (2026-07-08) ✅
+- Cuisine/food tags are now free-form strings (`DateIdea.cuisineTagNames` /
+  `foodTagNames`); establishment type stays the controlled IdeaCategory enum.
+- `PlaceTagNormalizer` (DateIdea.swift): trims, strips #/@, rejects junk words
+  and >28-char tags, applies aliases (ramyeon/korean ramen → Ramyun),
+  title-cases lowercase tags, dedupes case-insensitively.
+- Backward compatible Codable: decode merges legacy enum keys (their raw values
+  are display strings) into the new arrays; encode writes the new keys plus
+  enum-compatible values under the old keys so pre-update builds still decode.
+  CuisineTag/FoodTag enums remain only as this bridge + parser keyword output.
+- Apple Intelligence guides are open-ended (concise title-case tags, no
+  hashtags/handles/malls/addresses/generic words), so e.g. "Ramyun" and
+  "Cocktails" can be suggested; fallback parser maps its keyword hits to
+  strings through the normalizer.
+- New `EditableTagChips` (ImportReviewView.swift): removable chips + add field,
+  used in both Review Import and Edit Place (replaces allCases chip grids).
+- `IdeaFilter.cuisineTag/foodTag` are strings matched case-insensitively;
+  filter sheet lists tags derived from the workbook's saved places.
+
+## Tester feedback round 5 (2026-07-08) ✅
+- `ContributorAvatar` gained a real `size` parameter — outer `.frame` overrides
+  made the image overflow its slot ("Added by" and visit rows looked
+  misaligned). Detail 18pt, list rows 26pt, visit rows 16pt.
+- Streaming extraction: `FoundationModelCaptionExtractor` now uses
+  `session.streamResponse` and reports name/address/summary partials through
+  `onPartial` → `store.streamingPreview` → the import progress sheet fills in
+  fields live as tokens arrive (skeleton shimmer only for missing fields).
+- Model prewarming: `CaptionExtractorPrewarmer.prewarm()` creates and prewarms
+  a session when an import is likely (shared-queue items, clipboard link
+  detected, Import Link sheet opened); extract() consumes the prewarmed session.
+- Place details: "Opening hours & info" row in the detail Location section runs
+  an MKLocalSearch for the place and presents `mapItemDetailSheet` (Apple's
+  place card: hours, photos, phone).
+- Account sheet no longer surfaces Firebase internals ("Firebase ready" etc.);
+  only a generic "sign-in unavailable" note when Firebase is missing.
+- Join discoverability: "Join with invite code" now lives in the workbook
+  switcher menu on Saved (opens JoinWorkbookSheet directly).
+
 ## Tester feedback round 4 (2026-07-08) ✅
 - Full-width separators on the icon Type picker rows in import review + edit
   (`alignmentGuide(.listRowSeparatorLeading)`, same fix as the saved list).

@@ -5,8 +5,8 @@ enum SampleData {
         DateIdea(
             title: "Le Matin Patisserie",
             category: .cafe,
-            cuisineTags: [.french, .dessert],
-            foodTags: [.pastries, .desserts, .coffee],
+            cuisineTagNames: ["French", "Dessert"],
+            foodTagNames: ["Pastries", "Desserts", "Coffee"],
             location: PlaceLocation(
                 name: "Le Matin Patisserie",
                 address: "2 Orchard Turn, B2-49 ION Orchard, Singapore 238801",
@@ -26,8 +26,8 @@ enum SampleData {
         DateIdea(
             title: "Dollop Automat Self Photo Studio",
             category: .photobooth,
-            cuisineTags: [],
-            foodTags: [],
+            cuisineTagNames: [],
+            foodTagNames: [],
             location: PlaceLocation(
                 name: "Dollop Automat Self Photo Studio",
                 address: "30A Seah Street, Singapore 188386",

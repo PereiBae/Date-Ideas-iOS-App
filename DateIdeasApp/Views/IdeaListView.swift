@@ -95,13 +95,13 @@ struct IdeaListView: View {
                 }
 
                 if let cuisine = store.filter.cuisineTag {
-                    ActiveFilterChip(title: cuisine.rawValue) {
+                    ActiveFilterChip(title: cuisine) {
                         store.filter.cuisineTag = nil
                     }
                 }
 
                 if let food = store.filter.foodTag {
-                    ActiveFilterChip(title: food.rawValue) {
+                    ActiveFilterChip(title: food) {
                         store.filter.foodTag = nil
                     }
                 }
@@ -202,8 +202,7 @@ struct IdeaRowView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 8))
                 .overlay(alignment: .bottomTrailing) {
                     if showsContributor, let displayName = idea.createdByDisplayName {
-                        ContributorAvatar(name: displayName, imageURL: idea.createdByPhotoURL)
-                            .frame(width: 28, height: 28)
+                        ContributorAvatar(name: displayName, imageURL: idea.createdByPhotoURL, size: 26)
                             .background(.background, in: Circle())
                             .padding(4)
                             .accessibilityLabel("Added by \(displayName)")

@@ -22,8 +22,10 @@ Two targets: app `DateIdeas` (product name RendezQueue.app) and share extension
 - `DateIdeasApp/DateIdeasApp.swift` — app entry, `Theme` (accent color, AI
   gradient, serif nav titles), auth gate vs RootView switch
 - `DateIdeasApp/Models/DateIdea.swift` — all model types (DateIdea, Deal,
-  Visit, PlaceLocation, IdeaCategory + systemImage icons, CuisineTag, FoodTag,
-  ReviewMetric)
+  Visit, PlaceLocation, IdeaCategory + systemImage icons, ReviewMetric,
+  `PlaceTagNormalizer`). Cuisine/food tags are free-form strings
+  (`cuisineTagNames`/`foodTagNames`); the old CuisineTag/FoodTag enums exist
+  only as a Codable bridge for pre-flexible-tag data — do not use them in UI.
 - `DateIdeasApp/Models/ImportDraft.swift` — ImportDraft, ExtractionMethod,
   ImportStage
 - `DateIdeasApp/Services/DateIdeaStore.swift` — DateIdeaStore (local +
@@ -31,7 +33,8 @@ Two targets: app `DateIdeas` (product name RendezQueue.app) and share extension
   toast state, `UserLocationProvider`, and `CollaborationStore` (all Firebase:
   auth incl. Apple + Google, workbooks, sync, `copyIdea(_:to:)`)
 - `DateIdeasApp/Services/PostExtractionService.swift` — link metadata fetch,
-  Apple Intelligence caption extraction, parser fallback, stage callbacks
+  Apple Intelligence caption extraction (streams partials via `onPartial`,
+  prewarm via `CaptionExtractorPrewarmer`), parser fallback, stage callbacks
 - `DateIdeasApp/Services/SharedImportQueue.swift` — app-group UserDefaults
   queue shared with the extension
 - `DateIdeasApp/Views/RootView.swift` — tab bar, bottom accessories (save
@@ -73,7 +76,8 @@ Treat any build error as blocking. Stale-file warnings mentioning
 
 ## Reuse these components — do not reinvent
 
-`FilterChip` (capsule toggle chip), `FlowLayout` (wrapping chip layout),
+`FilterChip` (capsule toggle chip), `EditableTagChips` (removable tag chips +
+add field), `FlowLayout` (wrapping chip layout),
 `IconFilterChip`, `CategoryTile`, `IdeaCoverImage`, `ContributorAvatar`,
 `TagPill`, `DealStatusLine`, `DealEditorRows`, `PlaceMapView`,
 `SaveToastAccessory`, `GoogleSignInButton`/`GoogleLogoMark`,

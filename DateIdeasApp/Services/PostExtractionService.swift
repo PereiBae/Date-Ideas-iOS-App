@@ -6,21 +6,40 @@ import UniformTypeIdentifiers
 import UIKit
 
 protocol PostExtractionServicing {
-    func extract(from url: URL, supplementalText: String, onStage: @escaping @MainActor (ImportStage) -> Void) async -> ImportDraft
+    func extract(
+        from url: URL,
+        supplementalText: String,
+        onStage: @escaping @MainActor (ImportStage) -> Void,
+        onPartial: @escaping @MainActor (ExtractionPreview) -> Void
+    ) async -> ImportDraft
 }
 
 extension PostExtractionServicing {
     func extract(from url: URL) async -> ImportDraft {
-        await extract(from: url, supplementalText: "", onStage: { _ in })
+        await extract(from: url, supplementalText: "", onStage: { _ in }, onPartial: { _ in })
     }
 
     func extract(from url: URL, supplementalText: String) async -> ImportDraft {
-        await extract(from: url, supplementalText: supplementalText, onStage: { _ in })
+        await extract(from: url, supplementalText: supplementalText, onStage: { _ in }, onPartial: { _ in })
+    }
+}
+
+// Prepares the on-device model ahead of a likely import so the first
+// request doesn't pay the model-load latency.
+@MainActor
+enum CaptionExtractorPrewarmer {
+    static func prewarm() {
+        FoundationModelCaptionExtractor.prewarm()
     }
 }
 
 struct MockPostExtractionService: PostExtractionServicing {
-    func extract(from url: URL, supplementalText: String, onStage: @escaping @MainActor (ImportStage) -> Void) async -> ImportDraft {
+    func extract(
+        from url: URL,
+        supplementalText: String,
+        onStage: @escaping @MainActor (ImportStage) -> Void,
+        onPartial: @escaping @MainActor (ExtractionPreview) -> Void
+    ) async -> ImportDraft {
         let platform: String
         if url.host?.contains("tiktok") == true {
             platform = "TikTok"
@@ -40,7 +59,7 @@ struct MockPostExtractionService: PostExtractionServicing {
         let hasCaption = !extractionText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         let plannedMethod: ExtractionMethod = hasCaption && SystemLanguageModel.default.isAvailable ? .appleIntelligence : .parser
         await onStage(.extracting(plannedMethod))
-        let aiOutcome = await FoundationModelCaptionExtractor.extract(from: extractionText)
+        let aiOutcome = await FoundationModelCaptionExtractor.extract(from: extractionText, onPartial: onPartial)
         let aiResult = aiOutcome.result
         let parsed = aiResult?.parsedCaption ?? fallbackParsed
         let caption = extractionText.isEmpty
@@ -60,8 +79,8 @@ struct MockPostExtractionService: PostExtractionServicing {
         let idea = DateIdea(
             title: parsed.title,
             category: parsed.category,
-            cuisineTags: parsed.cuisineTags,
-            foodTags: parsed.foodTags,
+            cuisineTagNames: parsed.cuisineTags,
+            foodTagNames: parsed.foodTags,
             location: PlaceLocation(
                 name: parsed.title,
                 address: parsed.address,
@@ -444,8 +463,8 @@ private enum AppleMapsPlaceResolver {
 private struct ParsedCaption {
     var title: String
     var category: IdeaCategory
-    var cuisineTags: [CuisineTag]
-    var foodTags: [FoodTag]
+    var cuisineTags: [String]
+    var foodTags: [String]
     var address: String
     var summary: String
     var notes: String
@@ -467,10 +486,10 @@ private struct AIExtractedCaption {
     @Guide(description: "A short factual summary of what this place is and what it serves or offers.")
     var summary: String
 
-    @Guide(description: "Cuisine tags from this set only when supported by the caption: Japanese, Italian, Chinese, Korean, Thai, Western, Indian, Malay, Indonesian, Vietnamese, Mediterranean, Mexican, French, Local, Fusion, Dessert.")
+    @Guide(description: "Broad cuisine or style tags supported by the caption, as short title-case words (e.g. Japanese, Korean, Fusion, Dessert). Empty when the caption gives no cuisine evidence. Never use hashtags, influencer or account names, mall names, addresses, or generic words like food or delicious.")
     var cuisineTags: [String]
 
-    @Guide(description: "Popular food item tags from this set only when supported by the caption: Steak, Sushi, Ramen, Gyukatsu, Omakase, Sashimi, Ice Cream, Fried Chicken, Sandwiches, Pasta, Pizza, Burgers, Coffee, Matcha, Pastries, Oysters, Beef, Noodles, Rice, Desserts, Waffles, Gelato, Seafood, Hotpot, Dim Sum, Somen, Monaka.")
+    @Guide(description: "Specific dishes, drinks, or food items the caption mentions, as short title-case tags (e.g. Ramyun, Cocktails, Truffle Pasta, Matcha Latte). Empty when none are mentioned. Never use hashtags, influencer or account names, mall names, addresses, or generic words like food or delicious.")
     var foodTags: [String]
 
     @Guide(description: "Short deal or price details only when the caption clearly states a concrete promo, discount, or special price. Return an empty list when there is no clear deal.")
@@ -499,18 +518,27 @@ private enum FoundationModelCaptionExtractor {
         }
     }
 
-    static func extract(from text: String) async -> Outcome {
-        let trimmedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedText.isEmpty else {
-            return .fallback("No caption text was available to analyze.")
-        }
+    @MainActor private static var prewarmedSession: LanguageModelSession?
 
+    // Loads the model ahead of time; the next extract() consumes this session.
+    @MainActor
+    static func prewarm() {
         let model = SystemLanguageModel.default
-        guard model.isAvailable else {
-            return .fallback(unavailableReason())
-        }
+        guard model.isAvailable, prewarmedSession == nil else { return }
 
-        let session = LanguageModelSession(
+        let session = makeSession(model: model)
+        session.prewarm()
+        prewarmedSession = session
+    }
+
+    @MainActor
+    private static func takeSession(model: SystemLanguageModel) -> LanguageModelSession {
+        defer { prewarmedSession = nil }
+        return prewarmedSession ?? makeSession(model: model)
+    }
+
+    private static func makeSession(model: SystemLanguageModel) -> LanguageModelSession {
+        LanguageModelSession(
             model: model,
             instructions: """
             Extract date idea information from social media captions for a private couple's saved-ideas app.
@@ -522,9 +550,26 @@ private enum FoundationModelCaptionExtractor {
             Return no deals unless the caption clearly contains a concrete price, promo, discount, 1-for-1, loyalty offer, or promo code.
             """
         )
+    }
+
+    static func extract(
+        from text: String,
+        onPartial: @escaping @MainActor (ExtractionPreview) -> Void = { _ in }
+    ) async -> Outcome {
+        let trimmedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedText.isEmpty else {
+            return .fallback("No caption text was available to analyze.")
+        }
+
+        let model = SystemLanguageModel.default
+        guard model.isAvailable else {
+            return .fallback(unavailableReason())
+        }
+
+        let session = await takeSession(model: model)
 
         do {
-            let extracted = try await respond(using: session, caption: trimmedText)
+            let extracted = try await respond(using: session, caption: trimmedText, onPartial: onPartial)
 
             return .success(Result(
                 parsedCaption: parsedCaption(from: extracted),
@@ -533,7 +578,7 @@ private enum FoundationModelCaptionExtractor {
         } catch {
             do {
                 let compactCaption = compactedCaption(from: trimmedText)
-                let extracted = try await respond(using: session, caption: compactCaption)
+                let extracted = try await respond(using: session, caption: compactCaption, onPartial: onPartial)
 
                 return .success(Result(
                     parsedCaption: parsedCaption(from: extracted),
@@ -561,8 +606,14 @@ private enum FoundationModelCaptionExtractor {
         }
     }
 
-    private static func respond(using session: LanguageModelSession, caption: String) async throws -> AIExtractedCaption {
-        let response = try await session.respond(
+    // Streams the structured response, reporting name/address/summary as they
+    // are generated so the import sheet can show them live.
+    private static func respond(
+        using session: LanguageModelSession,
+        caption: String,
+        onPartial: @escaping @MainActor (ExtractionPreview) -> Void
+    ) async throws -> AIExtractedCaption {
+        let stream = session.streamResponse(
             to: """
             This is an English social-media caption about a Singapore food/place recommendation.
             Treat lowercase brand names, chef names, street names, mall names, and hashtags as proper nouns, not as a signal that the caption is in another language.
@@ -574,7 +625,32 @@ private enum FoundationModelCaptionExtractor {
             options: GenerationOptions(temperature: 0.1, maximumResponseTokens: 1_200)
         )
 
-        return response.content
+        var lastPartial: AIExtractedCaption.PartiallyGenerated?
+        for try await snapshot in stream {
+            let partial = snapshot.content
+            lastPartial = partial
+            let preview = ExtractionPreview(
+                name: partial.name,
+                address: partial.address,
+                summary: partial.summary
+            )
+            await onPartial(preview)
+        }
+
+        guard let lastPartial else {
+            throw CancellationError()
+        }
+
+        return AIExtractedCaption(
+            name: lastPartial.name ?? "",
+            category: lastPartial.category ?? "",
+            address: lastPartial.address ?? "",
+            summary: lastPartial.summary ?? "",
+            cuisineTags: lastPartial.cuisineTags ?? [],
+            foodTags: lastPartial.foodTags ?? [],
+            dealDetails: lastPartial.dealDetails ?? [],
+            confidence: lastPartial.confidence ?? 0.5
+        )
     }
 
     private static func compactedCaption(from text: String) -> String {
@@ -595,8 +671,8 @@ private enum FoundationModelCaptionExtractor {
 
     private static func parsedCaption(from extracted: AIExtractedCaption) -> ParsedCaption {
         let category = category(from: extracted.category)
-        let cuisineTags = extracted.cuisineTags.compactMap(cuisineTag(from:))
-        let foodTags = extracted.foodTags.compactMap(foodTag(from:))
+        let cuisineTags = PlaceTagNormalizer.normalize(extracted.cuisineTags)
+        let foodTags = PlaceTagNormalizer.normalize(extracted.foodTags)
         let deals = extracted.dealDetails
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
@@ -614,8 +690,8 @@ private enum FoundationModelCaptionExtractor {
         return ParsedCaption(
             title: title,
             category: category,
-            cuisineTags: Array(Set(cuisineTags)).sorted { $0.rawValue < $1.rawValue },
-            foodTags: Array(Set(foodTags)).sorted { $0.rawValue < $1.rawValue },
+            cuisineTags: cuisineTags,
+            foodTags: foodTags,
             address: address,
             summary: summary,
             notes: deals.map(\.details).joined(separator: "\n"),
@@ -633,40 +709,6 @@ private enum FoundationModelCaptionExtractor {
 
     private static func category(from value: String) -> IdeaCategory {
         IdeaCategory.matching(value.trimmingCharacters(in: .whitespacesAndNewlines)) ?? .restaurant
-    }
-
-    private static func cuisineTag(from value: String) -> CuisineTag? {
-        let normalized = normalizedTagLabel(value)
-        return CuisineTag.allCases.first {
-            normalizedTagLabel($0.rawValue) == normalized
-        }
-    }
-
-    private static func foodTag(from value: String) -> FoodTag? {
-        let normalized = normalizedTagLabel(value)
-        let aliases: [String: FoodTag] = [
-            "burger": .burgers,
-            "dessert": .desserts,
-            "pastry": .pastries,
-            "oyster": .oysters,
-            "noodle": .noodles,
-            "sandwich": .sandwiches,
-            "waffle": .waffles,
-            "dim sum": .dimSum,
-            "dimsum": .dimSum
-        ]
-
-        return aliases[normalized] ?? FoodTag.allCases.first {
-            normalizedTagLabel($0.rawValue) == normalized
-        }
-    }
-
-    private static func normalizedTagLabel(_ value: String) -> String {
-        value
-            .lowercased()
-            .replacingOccurrences(of: #"[^a-z0-9]+"#, with: " ", options: .regularExpression)
-            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private static func defaultTitle(for category: IdeaCategory) -> String {
@@ -698,8 +740,8 @@ private enum CaptionIdeaParser {
         let lowercased = joined.lowercased()
 
         let category = category(from: lowercased)
-        let cuisineTags = cuisineTags(from: lowercased, category: category)
-        let foodTags = foodTags(from: lowercased, category: category)
+        let cuisineTags = PlaceTagNormalizer.normalize(cuisineTags(from: lowercased, category: category).map(\.rawValue))
+        let foodTags = PlaceTagNormalizer.normalize(foodTags(from: lowercased, category: category).map(\.rawValue))
         let title = title(from: lines, joinedText: joined, category: category)
         let address = address(from: lines, joinedText: joined, title: title)
         let deals = deals(from: joined)

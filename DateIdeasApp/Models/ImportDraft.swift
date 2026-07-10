@@ -20,6 +20,17 @@ enum ImportStage: Equatable {
     case resolvingPlace
 }
 
+// Fields streamed live from Apple Intelligence while extraction runs.
+struct ExtractionPreview: Equatable {
+    var name: String?
+    var address: String?
+    var summary: String?
+
+    var isEmpty: Bool {
+        name == nil && address == nil && summary == nil
+    }
+}
+
 struct ImportDraft: Identifiable, Codable, Hashable {
     var id: UUID
     var sourceURL: URL

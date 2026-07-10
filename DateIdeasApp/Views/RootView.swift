@@ -109,6 +109,9 @@ struct RootView: View {
 
     private func refreshImportSignals() {
         queuedShareCount = SharedImportQueue.pendingCount()
+        if queuedShareCount > 0 {
+            CaptionExtractorPrewarmer.prewarm()
+        }
 
         let pasteboard = UIPasteboard.general
         guard pasteboard.changeCount != lastHandledChangeCount else {
@@ -118,12 +121,16 @@ struct RootView: View {
 
         if pasteboard.hasURLs {
             clipboardHasLink = true
+            CaptionExtractorPrewarmer.prewarm()
         } else if pasteboard.hasStrings {
             let observedChangeCount = pasteboard.changeCount
             Task { @MainActor in
                 let patterns = try? await pasteboard.detectedPatterns(for: [\.probableWebURL])
                 guard UIPasteboard.general.changeCount == observedChangeCount else { return }
                 clipboardHasLink = patterns?.contains(\.probableWebURL) == true
+                if clipboardHasLink {
+                    CaptionExtractorPrewarmer.prewarm()
+                }
             }
         } else {
             clipboardHasLink = false
@@ -241,6 +248,7 @@ struct SavedTabView: View {
     @State private var showingImportField = false
     @State private var showingAccount = false
     @State private var showingWorkbooks = false
+    @State private var showingJoinWorkbook = false
 
     var body: some View {
         NavigationStack {
@@ -292,6 +300,11 @@ struct SavedTabView: View {
                     .environmentObject(store)
                     .environmentObject(collaborationStore)
                 }
+                .sheet(isPresented: $showingJoinWorkbook) {
+                    JoinWorkbookSheet()
+                        .tint(Theme.accent)
+                        .environmentObject(collaborationStore)
+                }
                 .sheet(isPresented: $showingImportField) {
                     ImportLinkView(importURL: $importURL, importText: $importText) {
                         showingImportField = false
@@ -322,6 +335,12 @@ struct SavedTabView: View {
         }
 
         Divider()
+
+        Button {
+            showingJoinWorkbook = true
+        } label: {
+            Label("Join with invite code", systemImage: "ticket")
+        }
 
         Button {
             showingWorkbooks = true
@@ -613,18 +632,11 @@ struct AccountWorkbookView: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("Firebase") {
-                    HStack {
-                        Image(systemName: collaborationStore.canUseFirebase ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
-                            .foregroundStyle(collaborationStore.canUseFirebase ? .green : .orange)
-
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(firebaseStatusTitle)
-                                .font(.subheadline.weight(.semibold))
-                            Text(firebaseStatusMessage)
-                                .font(.footnote)
-                                .foregroundStyle(.secondary)
-                        }
+                if !collaborationStore.canUseFirebase {
+                    Section {
+                        Label("Sign-in is temporarily unavailable. Please try again later.", systemImage: "exclamationmark.triangle.fill")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
                     }
                 }
 
@@ -650,26 +662,6 @@ struct AccountWorkbookView: View {
                     }
                 }
             }
-        }
-    }
-
-    private var firebaseStatusTitle: String {
-        if collaborationStore.canUseFirebase {
-            "Firebase ready"
-        } else if collaborationStore.isFirebaseSDKLinked {
-            "Firebase plist needed"
-        } else {
-            "Firebase SDK needed"
-        }
-    }
-
-    private var firebaseStatusMessage: String {
-        if collaborationStore.canUseFirebase {
-            collaborationStore.statusMessage ?? "Auth and Firestore are available."
-        } else if collaborationStore.isFirebaseSDKLinked {
-            "Add GoogleService-Info.plist to the app target, then rebuild."
-        } else {
-            "Add FirebaseAuth and FirebaseFirestore with Swift Package Manager."
         }
     }
 
@@ -923,6 +915,9 @@ struct GoogleLogoMark: View {
 struct ContributorAvatar: View {
     let name: String
     let imageURL: URL?
+    // Size is a real parameter: wrapping the avatar in a smaller outer frame
+    // makes the image overflow its slot and look misaligned.
+    var size: CGFloat = 32
 
     private var initials: String {
         let parts = name.split(separator: " ")
@@ -942,6 +937,7 @@ struct ContributorAvatar: View {
                         image
                             .resizable()
                             .scaledToFill()
+                            .frame(width: size, height: size)
                     default:
                         initialsText
                     }
@@ -950,7 +946,7 @@ struct ContributorAvatar: View {
                 initialsText
             }
         }
-        .frame(width: 32, height: 32)
+        .frame(width: size, height: size)
         .clipShape(Circle())
         .accessibilityLabel(name)
     }
@@ -958,7 +954,7 @@ struct ContributorAvatar: View {
     // The frame stays fixed, so initials scale down at accessibility type sizes.
     private var initialsText: some View {
         Text(initials)
-            .font(.caption.weight(.bold))
+            .font(.system(size: size * 0.38, weight: .bold))
             .minimumScaleFactor(0.6)
             .foregroundStyle(Color.accentColor)
     }
@@ -1644,6 +1640,9 @@ struct ImportLinkView: View {
                     }
                     .disabled(importURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
+            }
+            .task {
+                CaptionExtractorPrewarmer.prewarm()
             }
         }
     }
