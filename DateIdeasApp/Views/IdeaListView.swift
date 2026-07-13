@@ -68,7 +68,7 @@ struct IdeaListView: View {
                         if store.filter.activeCount > 0 {
                             Text("\(store.filter.activeCount)")
                                 .font(.caption2.weight(.bold))
-                                .foregroundStyle(Color.accentColor)
+                                .foregroundStyle(Theme.accent)
                                 .padding(.horizontal, 6)
                                 .padding(.vertical, 2)
                                 .background(.white, in: Capsule())
@@ -76,7 +76,7 @@ struct IdeaListView: View {
                     }
                     .padding(.horizontal, 12)
                     .padding(.vertical, 7)
-                    .background(Color.accentColor, in: Capsule())
+                    .background(Theme.accent, in: Capsule())
                     .foregroundStyle(.white)
                 }
                 .buttonStyle(.plain)
@@ -173,7 +173,7 @@ struct FilterChip: View {
                 .padding(.vertical, 7)
                 .background {
                     if isSelected {
-                        Capsule().fill(Color.accentColor)
+                        Capsule().fill(Theme.accent)
                     } else {
                         Capsule().fill(Color(.secondarySystemGroupedBackground))
                         Capsule().strokeBorder(Color(.separator), lineWidth: 0.5)

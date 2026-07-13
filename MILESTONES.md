@@ -1,5 +1,25 @@
 # UI Redesign Milestones
 
+## Quality of life fixes (2026-07-09) ✅
+- Blue-flash root cause: custom fills used `Color.accentColor`, which resolves
+  from the environment at render time and comes up system blue on the first
+  frame of List rows (e.g. the Filters pill at launch). Every custom accent
+  fill/foreground now uses the literal `Theme.accent`; `Color.accentColor` is
+  banned for painting (CLAUDE.md design rule updated).
+- Tint stability: `.tint(Theme.accent)` re-asserted at the end of the map
+  screen's modifier chain — the mid-chain `.tint(.blue)` (for MapKit elements)
+  could leak into overlays/pushed screens depending on environment resolution,
+  causing the blue/rosé flip-flopping.
+- Editing a place's address now clears the stale pin and re-resolves
+  coordinates via `AppleMapsPlaceResolver` (made internal); the detail-page
+  map is identity-keyed on the coordinates so it recreates when the pin moves
+  (`Map(initialPosition:)` only applies once).
+- Import can save to any workbook: "Save to" navigation-link picker on the
+  review sheet (shown when >1 workbook, defaults to active); non-active
+  targets go through `CollaborationStore.copyIdea` +
+  `completeDraftSavedElsewhere`, and the save toast names the actual
+  destination (`SaveConfirmation.workbookName`).
+
 ## Workbook members + visit detail (2026-07-08) ✅
 - Workbook members: the active shared workbook card's member row opens
   `WorkbookMembersSheet` — avatars, display name (email fallback), email

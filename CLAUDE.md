@@ -62,8 +62,11 @@ Treat any build error as blocking. Stale-file warnings mentioning
 
 ## Design language (do not deviate)
 
-- Accent: rosé — `Theme.accent` (#C74069). Always use `Color.accentColor` or
-  `Theme.accent`; never hardcode other accent colors.
+- Accent: rosé — `Theme.accent` (#C74069). Always paint custom accent fills/
+  foregrounds with `Theme.accent`, NEVER `Color.accentColor` — the latter is
+  resolved from the environment at render time and can come up system blue on
+  the first frame of List rows before re-resolving (blue flash on launch).
+  `.tint(Theme.accent)` on sheet roots still handles system control tinting.
 - `Theme.aiGradient` (indigo→purple) is RESERVED for Apple Intelligence
   provenance UI only (sparkles, AI badges). Never use it for anything else.
 - Place names and large titles use New York serif via `Font.placeTitle(_:)`.

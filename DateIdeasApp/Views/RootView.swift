@@ -37,7 +37,7 @@ struct RootView: View {
         .tabBarMinimizeBehavior(.onScrollDown)
         .tabViewBottomAccessory(isEnabled: store.saveConfirmation != nil || queuedShareCount > 0 || clipboardHasLink) {
             if let confirmation = store.saveConfirmation {
-                SaveToastAccessory(workbookName: collaborationStore.activeWorkbook?.name) {
+                SaveToastAccessory(workbookName: confirmation.workbookName ?? collaborationStore.activeWorkbook?.name) {
                     if let idea = store.ideas.first(where: { $0.id == confirmation.ideaID }) {
                         viewingIdea = idea
                     }
@@ -188,7 +188,7 @@ struct ClipboardImportAccessory: View {
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: "link")
-                .foregroundStyle(Color.accentColor)
+                .foregroundStyle(Theme.accent)
 
             Text("Link copied")
                 .font(.subheadline.weight(.medium))
@@ -221,7 +221,7 @@ struct SharedQueueAccessory: View {
         Button(action: onImport) {
             HStack(spacing: 12) {
                 Image(systemName: "square.and.arrow.down")
-                    .foregroundStyle(Color.accentColor)
+                    .foregroundStyle(Theme.accent)
 
                 Text(count == 1 ? "1 shared link ready" : "\(count) shared links ready")
                     .font(.subheadline.weight(.medium))
@@ -232,7 +232,7 @@ struct SharedQueueAccessory: View {
 
                 Text("Import")
                     .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(Color.accentColor)
+                    .foregroundStyle(Theme.accent)
             }
             .padding(.horizontal, 14)
         }
@@ -928,7 +928,7 @@ struct ContributorAvatar: View {
     var body: some View {
         ZStack {
             Circle()
-                .fill(Color.accentColor.opacity(0.16))
+                .fill(Theme.accent.opacity(0.16))
 
             if let imageURL {
                 AsyncImage(url: imageURL) { phase in
@@ -956,7 +956,7 @@ struct ContributorAvatar: View {
         Text(initials)
             .font(.system(size: size * 0.38, weight: .bold))
             .minimumScaleFactor(0.6)
-            .foregroundStyle(Color.accentColor)
+            .foregroundStyle(Theme.accent)
     }
 }
 
@@ -1155,6 +1155,10 @@ struct PlacesMapView: View {
             }
             .onChange(of: visitFilter) { dropSelectionIfHidden() }
             .onChange(of: selectedCategory) { dropSelectionIfHidden() }
+            // Re-assert rosé for everything layered on the map (header, popups,
+            // preview card, pushed screens); the inner .tint(.blue) sits closer
+            // to the Map so MapKit's own elements stay blue.
+            .tint(Theme.accent)
             .task {
                 // Opening the map is the contextual moment to ask for location
                 // (prompts only while permission is undetermined).
@@ -1291,7 +1295,7 @@ struct PlacesMapView: View {
         .overlay(alignment: .topTrailing) {
             if selectedCategory != nil && !showingCategoryPicker {
                 Circle()
-                    .fill(Color.accentColor)
+                    .fill(Theme.accent)
                     .frame(width: 10, height: 10)
                     .overlay {
                         Circle().strokeBorder(.white, lineWidth: 1.5)
@@ -1309,13 +1313,13 @@ struct PlacesMapView: View {
                     .lineLimit(1)
                     .padding(.horizontal, 10)
                     .padding(.vertical, 5)
-                    .background(isSelected ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.regularMaterial), in: Capsule())
+                    .background(isSelected ? AnyShapeStyle(Theme.accent) : AnyShapeStyle(.regularMaterial), in: Capsule())
                     .foregroundStyle(isSelected ? Color.white : Color.primary)
 
                 Image(systemName: systemImage)
                     .font(.subheadline.weight(.medium))
                     .frame(width: 36, height: 36)
-                    .background(isSelected ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.regularMaterial), in: Circle())
+                    .background(isSelected ? AnyShapeStyle(Theme.accent) : AnyShapeStyle(.regularMaterial), in: Circle())
                     .foregroundStyle(isSelected ? Color.white : Color.primary)
             }
         }

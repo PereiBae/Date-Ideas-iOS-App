@@ -2,12 +2,22 @@ import SwiftUI
 
 struct ImportSessionSheet: View {
     @EnvironmentObject private var store: DateIdeaStore
+    @EnvironmentObject private var collaborationStore: CollaborationStore
 
     var body: some View {
         Group {
             if let draft = store.pendingDraft {
-                ImportReviewView(draft: draft) { reviewedDraft in
-                    store.saveDraft(reviewedDraft)
+                ImportReviewView(draft: draft) { reviewedDraft, targetWorkbook in
+                    if let targetWorkbook, targetWorkbook.id != collaborationStore.activeWorkbook?.id {
+                        // Saving into a different workbook: write remotely only;
+                        // the active workbook's local list is untouched.
+                        Task {
+                            await collaborationStore.copyIdea(reviewedDraft.extractedIdea, to: targetWorkbook)
+                        }
+                        store.completeDraftSavedElsewhere(reviewedDraft, workbookName: targetWorkbook.name)
+                    } else {
+                        store.saveDraft(reviewedDraft)
+                    }
                 }
             } else {
                 ExtractionProgressView(stage: store.importStage ?? .fetchingCaption, preview: store.streamingPreview)
@@ -183,10 +193,11 @@ struct ImportReviewView: View {
     @State private var draft: ImportDraft
     @State private var aiFields: Set<AIField>
     @State private var keyboardVisible = false
+    @State private var selectedWorkbookID: String?
 
-    let onSave: (ImportDraft) -> Void
+    let onSave: (ImportDraft, Workbook?) -> Void
 
-    init(draft: ImportDraft, onSave: @escaping (ImportDraft) -> Void) {
+    init(draft: ImportDraft, onSave: @escaping (ImportDraft, Workbook?) -> Void) {
         _draft = State(initialValue: draft)
         self.onSave = onSave
 
@@ -213,6 +224,12 @@ struct ImportReviewView: View {
                 foodSection
                 dealSection
                 sourceSection
+                saveTargetSection
+            }
+            .onAppear {
+                if selectedWorkbookID == nil {
+                    selectedWorkbookID = collaborationStore.activeWorkbook?.id
+                }
             }
             .keyboardDismissal()
             .navigationTitle("Review Import")
@@ -426,6 +443,29 @@ struct ImportReviewView: View {
 
     // MARK: Save
 
+    private var selectedWorkbook: Workbook? {
+        collaborationStore.workbooks.first { $0.id == selectedWorkbookID }
+            ?? collaborationStore.activeWorkbook
+    }
+
+    @ViewBuilder
+    private var saveTargetSection: some View {
+        if collaborationStore.workbooks.count > 1 {
+            Section {
+                Picker("Workbook", selection: $selectedWorkbookID) {
+                    ForEach(collaborationStore.workbooks) { workbook in
+                        Label(workbook.name, systemImage: workbook.isPersonal ? "lock" : "person.2")
+                            .tag(Optional(workbook.id))
+                    }
+                }
+                .pickerStyle(.navigationLink)
+                .alignmentGuide(.listRowSeparatorLeading) { _ in 0 }
+            } header: {
+                Text("Save to")
+            }
+        }
+    }
+
     private var saveBar: some View {
         Button(action: save) {
             Text(saveButtonTitle)
@@ -440,7 +480,7 @@ struct ImportReviewView: View {
     }
 
     private var saveButtonTitle: String {
-        if let workbook = collaborationStore.activeWorkbook {
+        if let workbook = selectedWorkbook {
             "Save to \(workbook.name)"
         } else {
             "Save"
@@ -449,7 +489,7 @@ struct ImportReviewView: View {
 
     private func save() {
         draft.extractedIdea.location.name = draft.extractedIdea.title
-        onSave(draft)
+        onSave(draft, selectedWorkbook)
         dismiss()
     }
 
@@ -479,8 +519,8 @@ struct EditableTagChips: View {
                             }
                             .padding(.horizontal, 12)
                             .padding(.vertical, 7)
-                            .foregroundStyle(Color.accentColor)
-                            .background(Color.accentColor.opacity(0.12), in: Capsule())
+                            .foregroundStyle(Theme.accent)
+                            .background(Theme.accent.opacity(0.12), in: Capsule())
                         }
                         .buttonStyle(.plain)
                         .accessibilityLabel("Remove tag \(tag)")

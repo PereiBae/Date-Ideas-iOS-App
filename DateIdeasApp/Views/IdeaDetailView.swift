@@ -289,7 +289,7 @@ struct IdeaDetailView: View {
                 HStack(alignment: .top, spacing: 10) {
                     Image(systemName: "tag.fill")
                         .font(.subheadline)
-                        .foregroundStyle(Color.accentColor)
+                        .foregroundStyle(Theme.accent)
                         .padding(.top, 2)
 
                     VStack(alignment: .leading, spacing: 4) {
@@ -672,10 +672,10 @@ struct TagPill: View {
     var body: some View {
         Text(title)
             .font(.caption.weight(.medium))
-            .foregroundStyle(Color.accentColor)
+            .foregroundStyle(Theme.accent)
             .padding(.horizontal, 9)
             .padding(.vertical, 4)
-            .background(Color.accentColor.opacity(0.12), in: Capsule())
+            .background(Theme.accent.opacity(0.12), in: Capsule())
     }
 }
 
@@ -785,8 +785,11 @@ struct PlaceMapView: View {
                 Marker(location.name, coordinate: coordinate)
                     .tint(.red)
             }
+            // Recreate the map when the pin moves (initialPosition only
+            // applies once, so an edited address wouldn't update it).
+            .id("\(latitude),\(longitude)")
         } else {
-            ContentUnavailableView("Map unavailable", systemImage: "map")
+            ContentUnavailableView("Locating on the map…", systemImage: "map")
         }
     }
 }

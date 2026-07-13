@@ -18,6 +18,8 @@ struct SaveConfirmation: Identifiable, Equatable {
     let id: UUID
     let ideaID: UUID
     let ideaTitle: String
+    // Nil means the active workbook; set when saved somewhere else.
+    var workbookName: String?
 }
 
 enum IdeaSortOrder: String, CaseIterable, Identifiable {
@@ -301,7 +303,21 @@ final class DateIdeaStore: ObservableObject {
     func saveDraft(_ draft: ImportDraft) {
         let savedIdea = saveIdea(draft.extractedIdea)
         pendingDraft = nil
-        saveConfirmation = SaveConfirmation(id: UUID(), ideaID: savedIdea.id, ideaTitle: savedIdea.title)
+        saveConfirmation = SaveConfirmation(id: UUID(), ideaID: savedIdea.id, ideaTitle: savedIdea.title, workbookName: nil)
+    }
+
+    // Closes the import flow when the draft was written to a non-active
+    // workbook (the local list is untouched in that case).
+    func completeDraftSavedElsewhere(_ draft: ImportDraft, workbookName: String) {
+        pendingDraft = nil
+        importStage = nil
+        streamingPreview = nil
+        saveConfirmation = SaveConfirmation(
+            id: UUID(),
+            ideaID: draft.extractedIdea.id,
+            ideaTitle: draft.extractedIdea.title,
+            workbookName: workbookName
+        )
     }
 
     @discardableResult
@@ -344,11 +360,47 @@ final class DateIdeaStore: ObservableObject {
 
     func updateIdea(_ idea: DateIdea) {
         guard let index = ideas.firstIndex(where: { $0.id == idea.id }) else { return }
+        let previousAddress = ideas[index].location.address
+
         var nextIdea = idea
         nextIdea.updatedAt = .now
+
+        // An edited address invalidates the stored pin; re-resolve it.
+        let addressChanged = previousAddress.trimmingCharacters(in: .whitespacesAndNewlines)
+            .caseInsensitiveCompare(nextIdea.location.address.trimmingCharacters(in: .whitespacesAndNewlines)) != .orderedSame
+        if addressChanged {
+            nextIdea.location.latitude = nil
+            nextIdea.location.longitude = nil
+        }
+
         ideas[index] = nextIdea
         persist()
         syncIdeaIfNeeded(nextIdea)
+
+        if addressChanged || nextIdea.location.latitude == nil {
+            Task {
+                await refreshCoordinates(forIdeaWithID: nextIdea.id, expectedAddress: nextIdea.location.address)
+            }
+        }
+    }
+
+    private func refreshCoordinates(forIdeaWithID id: UUID, expectedAddress: String) async {
+        guard let idea = ideas.first(where: { $0.id == id }) else { return }
+
+        let placeName = idea.location.name.isEmpty ? idea.title : idea.location.name
+        guard let resolved = await AppleMapsPlaceResolver.resolve(name: placeName, address: expectedAddress) else { return }
+
+        // The idea may have been deleted or re-edited while resolving.
+        guard let index = ideas.firstIndex(where: { $0.id == id }),
+              ideas[index].location.address == expectedAddress else { return }
+
+        ideas[index].location.latitude = resolved.latitude
+        ideas[index].location.longitude = resolved.longitude
+        if ideas[index].location.websiteURL == nil {
+            ideas[index].location.websiteURL = resolved.websiteURL
+        }
+        persist()
+        syncIdeaIfNeeded(ideas[index])
     }
 
     func deleteIdea(_ idea: DateIdea) {

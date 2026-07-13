@@ -216,7 +216,7 @@ struct IconFilterChip: View {
                 .padding(.vertical, 7)
                 .background {
                     if isSelected {
-                        Capsule().fill(Color.accentColor)
+                        Capsule().fill(Theme.accent)
                     } else {
                         Capsule().fill(Color(.secondarySystemGroupedBackground))
                         Capsule().strokeBorder(Color(.separator), lineWidth: 0.5)
@@ -240,7 +240,7 @@ private struct CategoryTile: View {
             VStack(spacing: 6) {
                 ZStack {
                     if isSelected {
-                        Circle().fill(Color.accentColor)
+                        Circle().fill(Theme.accent)
                     } else {
                         Circle().fill(Color(.secondarySystemGroupedBackground))
                         Circle().strokeBorder(Color(.separator), lineWidth: 0.5)

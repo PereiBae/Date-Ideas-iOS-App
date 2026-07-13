@@ -127,7 +127,7 @@ struct AddVisitView: View {
 
                             Image(systemName: participantUserIDs.contains(member.id) ? "checkmark.circle.fill" : "circle")
                                 .font(.title3)
-                                .foregroundStyle(participantUserIDs.contains(member.id) ? Color.accentColor : Color.secondary)
+                                .foregroundStyle(participantUserIDs.contains(member.id) ? Theme.accent : Color.secondary)
                         }
                         .contentShape(Rectangle())
                     }

@@ -133,7 +133,7 @@ struct WorkbookCard: View {
                 if isActive {
                     Label("Active", systemImage: "checkmark.circle.fill")
                         .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(Color.accentColor)
+                        .foregroundStyle(Theme.accent)
                 } else if workbook.isPersonal {
                     Image(systemName: "lock")
                         .foregroundStyle(.secondary)
@@ -189,7 +189,7 @@ struct WorkbookCard: View {
 
                         Label("Share", systemImage: "square.and.arrow.up")
                             .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(Color.accentColor)
+                            .foregroundStyle(Theme.accent)
                     }
                     .font(.subheadline)
                     .padding(.horizontal, 12)
@@ -204,7 +204,7 @@ struct WorkbookCard: View {
         .overlay {
             RoundedRectangle(cornerRadius: 16)
                 .strokeBorder(
-                    isActive ? Color.accentColor : Color(.separator),
+                    isActive ? Theme.accent : Color(.separator),
                     lineWidth: isActive ? 2 : 0.5
                 )
         }
@@ -305,10 +305,10 @@ struct WorkbookMembersSheet: View {
             if member.id == collaborationStore.currentUser?.id {
                 Text("You")
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(Color.accentColor)
+                    .foregroundStyle(Theme.accent)
                     .padding(.horizontal, 9)
                     .padding(.vertical, 4)
-                    .background(Color.accentColor.opacity(0.12), in: Capsule())
+                    .background(Theme.accent.opacity(0.12), in: Capsule())
             }
         }
         .padding(.vertical, 2)

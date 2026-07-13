@@ -405,14 +405,14 @@ private enum DealFreshnessPolicy {
     }
 }
 
-private struct ResolvedPlace {
+struct ResolvedPlace {
     var latitude: Double
     var longitude: Double
     var websiteURL: URL?
     var phoneNumber: String?
 }
 
-private enum AppleMapsPlaceResolver {
+enum AppleMapsPlaceResolver {
     private static let singaporeRegion = MKCoordinateRegion(
         center: CLLocationCoordinate2D(latitude: 1.3521, longitude: 103.8198),
         span: MKCoordinateSpan(latitudeDelta: 0.7, longitudeDelta: 0.9)
