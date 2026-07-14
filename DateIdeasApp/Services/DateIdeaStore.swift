@@ -264,6 +264,8 @@ final class DateIdeaStore: ObservableObject {
 
     func importQueuedShareIfNeeded() async {
         guard pendingDraft == nil, importStage == nil, let url = SharedImportQueue.dequeueFirst() else { return }
+        // A manual or automatic start resumes the shared-import chain.
+        sharedAutoImportPaused = false
         await runImport(from: url, supplementalText: "")
     }
 
@@ -272,6 +274,17 @@ final class DateIdeaStore: ObservableObject {
         importStage = nil
         streamingPreview = nil
         pendingDraft = nil
+        // Cancelling a review is an exit signal: stop auto-opening the rest of
+        // the shared queue until the user returns to the app or taps Import.
+        sharedAutoImportPaused = true
+    }
+
+    // While false, queued share-extension links import themselves one after
+    // another, so the user only reviews and saves.
+    @Published private(set) var sharedAutoImportPaused = false
+
+    func resumeSharedAutoImport() {
+        sharedAutoImportPaused = false
     }
 
     private func runImport(from url: URL, supplementalText: String) async {

@@ -1,5 +1,90 @@
 # UI Redesign Milestones
 
+## Share flow polish (2026-07-14) ✅
+- Share extension now shows an "Imported! · Review it in RendezQueue" card
+  (spring-in orange checkmark, success haptic, dim backdrop, auto-dismiss
+  ~1.2s) instead of a blank sheet flashing away. Colors hardcoded in the
+  extension (it doesn't bundle the app's Theme or fonts).
+- Queued share links now import automatically, one after another: opening the
+  app (or saving a review) auto-starts the next queued link's extraction —
+  the user only reviews and saves. Cancelling a review pauses the chain
+  (`DateIdeaStore.sharedAutoImportPaused`); returning to the app or tapping
+  the "N links ready" pill resumes it. The review sheet's save bar shows
+  "N more shared links will import after this one".
+
+## "You" tab (2026-07-14) ✅
+- Fifth tab per the mockup: Saved / Map / Deals / You / Search(role) —
+  `AccountWorkbookView` promoted from a sheet to the You tab (Done toolbar and
+  dismiss removed, title "You"). The profile button in Saved's top-left toolbar
+  and its account sheet are gone; the workbook switcher menu remains.
+
+## Visual identity pass — phase 3: Import / Workbooks / Visits (2026-07-14) ✅
+- Workbooks: active shared card now carries the mock's INVITE CODE block
+  (Space Mono letterspaced code + solid-orange Share button on a warm inset)
+  and an inline MEMBERS card (avatar rows, hairline dividers, "You" chip)
+  fed by `collaborationStore.activeWorkbookMembers`. The separate
+  WorkbookMembersSheet was removed.
+- Import progress: streamed fields became the "EXTRACTED SO FAR" card —
+  Bricolage ExtraBold streamed name with a blinking orange cursor, shimmer
+  bars for pending fields, centered green-lock "On-device · nothing leaves
+  your iPhone" note.
+- Import review: mono section headers ("Details"/"Address"/"Cuisine"/"Food
+  items"/"Deal"/"Source"/"Save into"), selected tag chips gained the soft
+  orange border, save CTA is the mock's 54pt orange-gradient button with glow.
+- Visit detail: photo grid became the mock's mosaic (large tile + two stacked,
+  "+N" overflow, tap to zoom); rating became the dark OVERALL stat card
+  (orange star, Bricolage 800) beside a white SPENT card, with factor BARS
+  (`FactorBarRow` replaced star-row `RatingDisplayRow`); notes under a mono
+  header.
+
+## Visual identity pass — phase 2 rollout (2026-07-14) ✅
+Saved-screen sign-off approved (with stronger card shadows: cardShadow 0.18,
+radius 16, y 8). Rolled the treatment app-wide:
+- Hanken Grotesk applied to ~100 explicit text styles across every view via
+  `Font.ui`; deal/status colors moved to `Theme.endingSoon`/`Theme.visited`
+  (want-to-go stays red per user choice — the palette's warm red).
+- Workbook cards: white floating cards with warm shadow + hairline; invite
+  code in Space Mono; workbooks screen on the paper gradient.
+- Sign-in rebuilt as the mockup's dark warm hero: burnt-orange gradient
+  (#C25A2A→#7A3418), white RendezQueue wordmark in Bricolage ExtraBold,
+  "Your next date, already saved." tagline, translucent white input fields,
+  solid white 54pt CTA, palette-recolored brand cards, forced dark scheme.
+- Map preview card gained the floating shadow.
+Deferred by design: mockup's custom floating tab bar (native Liquid Glass bar
+kept — required for tabViewBottomAccessory toasts) and the fifth "You" tab.
+
+## Visual identity pass — phase 1 (2026-07-14) ✅ (approved)
+Per Downloads/CLAUDE_CODE_PROMPT.md: Theme layer + Home · Saved restyled first
+for approval before rolling out to remaining screens.
+- Real brand fonts bundled as static TTFs (Google Fonts css2 API →
+  DateIdeasApp/Fonts, folder reference A...035/134, UIAppFonts): Bricolage
+  Grotesque 600/700/800, Hanken Grotesk 400–700, Space Mono 400/700. Font
+  helpers: `placeTitle`/`displayHeavy` (Bricolage), `ui(_:weight:)` (Hanken,
+  also app-wide default), `mono` (Space Mono). Nav bar titles use Bricolage
+  via UIAppearance.
+- Theme additions: `paperGradient` page background (themedScreenBackground now
+  uses it), warm text ramp, `cardShadow`, status colors `visited`/`endingSoon`.
+- Home · Saved restyled: plain list with floating white card rows (radius 16,
+  warm shadow), Hanken/Bricolage type in rows and chips, orange star + dark
+  score, import moved from toolbar to a gradient FAB (bottom-trailing).
+Remaining screens restyle after user sign-off.
+
+## Visual redesign v2 — warm/orange (2026-07-09) ✅
+Ported the approved Claude Design mockup (Downloads/RendezQueue.html):
+- New token layer in `Theme` (all light/dark dynamic): cream `background`,
+  white `cardBackground`, `hairline`, orange `accent` #F26B1D + CTA
+  `accentGradient`, tag tint pairs, pink `avatarGradient`. Asset-catalog
+  AccentColor updated to match.
+- Typography: serif dropped — place titles/large titles are bold system sans;
+  `SectionLabel` adds uppercase mono section headers (filter sheet, visits).
+- Tag chips became tinted rounded rects (`TagPill` prominent/neutral,
+  `EditableTagChips`, list-row tags incl. category); stars orange; avatars
+  pink gradient with white initials.
+- Cream page backgrounds app-wide via `.themedScreenBackground()`; detail page
+  action row rebuilt as icon-over-label cards with gradient "Log visit".
+- Mockup fonts (Bricolage Grotesque/Hanken Grotesque/Space Mono) approximated
+  with system fonts for now.
+
 ## Quality of life fixes (2026-07-09) ✅
 - Blue-flash root cause: custom fills used `Color.accentColor`, which resolves
   from the environment at render time and comes up system blue on the first

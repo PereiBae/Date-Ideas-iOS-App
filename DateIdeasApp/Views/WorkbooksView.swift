@@ -5,7 +5,6 @@ struct WorkbooksView: View {
     @EnvironmentObject private var collaborationStore: CollaborationStore
     @State private var showingCreate = false
     @State private var showingJoin = false
-    @State private var membersWorkbook: Workbook?
 
     var body: some View {
         ScrollView {
@@ -25,9 +24,7 @@ struct WorkbooksView: View {
                         isActive: workbook.id == collaborationStore.activeWorkbook?.id,
                         ideaCount: workbook.id == collaborationStore.activeWorkbook?.id ? store.ideas.count : nil,
                         currentUser: collaborationStore.currentUser,
-                        onShowMembers: workbook.isPersonal ? nil : {
-                            membersWorkbook = workbook
-                        }
+                        members: workbook.id == collaborationStore.activeWorkbook?.id ? collaborationStore.activeWorkbookMembers : []
                     ) {
                         collaborationStore.selectWorkbook(workbook)
                     }
@@ -35,7 +32,7 @@ struct WorkbooksView: View {
 
                 if let errorMessage = collaborationStore.errorMessage {
                     Text(errorMessage)
-                        .font(.footnote)
+                        .font(.ui(.footnote))
                         .foregroundStyle(.red)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.horizontal, 4)
@@ -43,7 +40,7 @@ struct WorkbooksView: View {
             }
             .padding()
         }
-        .background(Color(.systemGroupedBackground))
+        .background(Theme.paperGradient.ignoresSafeArea())
         .navigationTitle("Workbooks")
         .safeAreaInset(edge: .bottom) {
             VStack(spacing: 10) {
@@ -75,11 +72,6 @@ struct WorkbooksView: View {
             JoinWorkbookSheet()
                 .environmentObject(collaborationStore)
         }
-        .sheet(item: $membersWorkbook) { workbook in
-            WorkbookMembersSheet(workbook: workbook)
-                .tint(Theme.accent)
-                .environmentObject(collaborationStore)
-        }
     }
 }
 
@@ -88,7 +80,7 @@ struct WorkbookCard: View {
     let isActive: Bool
     let ideaCount: Int?
     let currentUser: AppUser?
-    var onShowMembers: (() -> Void)?
+    var members: [AppUser] = []
     let onSelect: () -> Void
 
     private var subtitle: String {
@@ -132,7 +124,7 @@ struct WorkbookCard: View {
 
                 if isActive {
                     Label("Active", systemImage: "checkmark.circle.fill")
-                        .font(.subheadline.weight(.semibold))
+                        .font(.ui(.subheadline, weight: .semibold))
                         .foregroundStyle(Theme.accent)
                 } else if workbook.isPersonal {
                     Image(systemName: "lock")
@@ -141,74 +133,110 @@ struct WorkbookCard: View {
                 }
             }
 
-            // On the active shared card the member row opens the members list.
-            // (Inactive cards are buttons themselves, so no nested button there.)
-            if isActive, let onShowMembers {
-                Button(action: onShowMembers) {
-                    HStack(spacing: 8) {
-                        if !workbook.isPersonal {
-                            memberAvatars
-                        }
-
-                        Text(subtitle)
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-
-                        Image(systemName: "chevron.right")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(.tertiary)
-                    }
-                    .contentShape(Rectangle())
+            HStack(spacing: 8) {
+                if !workbook.isPersonal {
+                    memberAvatars
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel("View members")
-            } else {
-                HStack(spacing: 8) {
-                    if !workbook.isPersonal {
-                        memberAvatars
-                    }
 
-                    Text(subtitle)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
+                Text(subtitle)
+                    .font(.ui(.subheadline))
+                    .foregroundStyle(.secondary)
             }
 
             if isActive && workbook.isShareable {
-                ShareLink(item: "Join my RendezQueue workbook with code \(workbook.inviteCode)") {
-                    HStack(spacing: 6) {
-                        Text("Invite code")
-                            .foregroundStyle(.secondary)
+                HStack(alignment: .center) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        SectionLabel("Invite code")
 
                         Text(workbook.inviteCode)
-                            .monospaced()
-                            .fontWeight(.semibold)
-                            .foregroundStyle(.primary)
-
-                        Spacer()
-
-                        Label("Share", systemImage: "square.and.arrow.up")
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(Theme.accent)
+                            .font(.mono(.title3, bold: true))
+                            .kerning(2)
+                            .foregroundStyle(Theme.textPrimary)
                     }
-                    .font(.subheadline)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 9)
-                    .background(Color(.tertiarySystemGroupedBackground), in: Capsule())
+
+                    Spacer()
+
+                    ShareLink(item: "Join my RendezQueue workbook with code \(workbook.inviteCode)") {
+                        Label("Share", systemImage: "square.and.arrow.up")
+                            .font(.ui(.footnote, weight: .bold))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 13)
+                            .padding(.vertical, 9)
+                            .background(Theme.accent, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    }
                 }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+                .background(Theme.neutralChipBackground, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            }
+
+            if isActive, !workbook.isPersonal, !members.isEmpty {
+                membersBlock
             }
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16))
+        .background(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(Theme.cardBackground)
+                .shadow(color: Theme.cardShadow, radius: 16, y: 8)
+        )
         .overlay {
             RoundedRectangle(cornerRadius: 16)
                 .strokeBorder(
-                    isActive ? Theme.accent : Color(.separator),
-                    lineWidth: isActive ? 2 : 0.5
+                    isActive ? Theme.accent : Theme.hairline,
+                    lineWidth: isActive ? 2 : 1
                 )
         }
         .accessibilityAddTraits(isActive ? .isSelected : [])
+    }
+
+
+    // Inline MEMBERS card (mockup design) shown on the active shared workbook.
+    private var membersBlock: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            SectionLabel("Members")
+                .padding(.horizontal, 12)
+                .padding(.top, 10)
+                .padding(.bottom, 4)
+
+            ForEach(Array(members.enumerated()), id: \.element.id) { index, member in
+                HStack(spacing: 11) {
+                    ContributorAvatar(name: member.displayName, imageURL: member.photoURL, size: 34)
+
+                    Text(member.displayName)
+                        .font(.ui(.subheadline, weight: .semibold))
+                        .foregroundStyle(Theme.textPrimary)
+
+                    Spacer()
+
+                    if member.id == currentUser?.id {
+                        Text("You")
+                            .font(.ui(.caption2, weight: .semibold))
+                            .foregroundStyle(Theme.accentTintForeground)
+                            .padding(.horizontal, 9)
+                            .padding(.vertical, 4)
+                            .background(Theme.accentTintBackground, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+                    }
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+
+                if index < members.count - 1 {
+                    Divider()
+                        .overlay(Theme.hairline)
+                        .padding(.leading, 57)
+                }
+            }
+        }
+        .padding(.bottom, 6)
+        .background(Theme.cardBackground, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .strokeBorder(Theme.hairline, lineWidth: 1)
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Members")
     }
 
     private var memberAvatars: some View {
@@ -220,7 +248,7 @@ struct WorkbookCard: View {
             let others = max(0, workbook.memberIDs.count - 1)
             if others > 0 {
                 Text("+\(others)")
-                    .font(.caption.weight(.bold))
+                    .font(.ui(.caption, weight: .bold))
                     .foregroundStyle(.secondary)
                     .frame(width: 32, height: 32)
                     .background(Color(.tertiarySystemGroupedBackground), in: Circle())
@@ -242,80 +270,6 @@ struct WorkbookCard: View {
     }
 }
 
-struct WorkbookMembersSheet: View {
-    @Environment(\.dismiss) private var dismiss
-    @EnvironmentObject private var collaborationStore: CollaborationStore
-    let workbook: Workbook
-    @State private var members: [AppUser] = []
-    @State private var isLoading = true
-
-    var body: some View {
-        NavigationStack {
-            List {
-                if isLoading {
-                    HStack {
-                        Spacer()
-                        ProgressView()
-                        Spacer()
-                    }
-                } else if members.isEmpty {
-                    Text("Members could not be loaded. Check your connection and try again.")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                } else {
-                    ForEach(members) { member in
-                        memberRow(member)
-                    }
-                }
-            }
-            .navigationTitle(workbook.name)
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") {
-                        dismiss()
-                    }
-                }
-            }
-            .task {
-                members = await collaborationStore.fetchMembers(of: workbook)
-                isLoading = false
-            }
-        }
-        .presentationDetents([.medium, .large])
-    }
-
-    private func memberRow(_ member: AppUser) -> some View {
-        HStack(spacing: 12) {
-            ContributorAvatar(name: member.displayName, imageURL: member.photoURL, size: 40)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(member.displayName)
-                    .font(.body.weight(.medium))
-
-                if let email = member.email, email != member.displayName {
-                    Text(email)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-
-            Spacer()
-
-            if member.id == collaborationStore.currentUser?.id {
-                Text("You")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(Theme.accent)
-                    .padding(.horizontal, 9)
-                    .padding(.vertical, 4)
-                    .background(Theme.accent.opacity(0.12), in: Capsule())
-            }
-        }
-        .padding(.vertical, 2)
-        .accessibilityElement(children: .combine)
-    }
-}
-
 struct CreateWorkbookSheet: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var collaborationStore: CollaborationStore
@@ -334,7 +288,7 @@ struct CreateWorkbookSheet: View {
                 if let errorMessage = collaborationStore.errorMessage {
                     Section {
                         Text(errorMessage)
-                            .font(.footnote)
+                            .font(.ui(.footnote))
                             .foregroundStyle(.red)
                     }
                 }
@@ -390,7 +344,7 @@ struct JoinWorkbookSheet: View {
                 if let errorMessage = collaborationStore.errorMessage {
                     Section {
                         Text(errorMessage)
-                            .font(.footnote)
+                            .font(.ui(.footnote))
                             .foregroundStyle(.red)
                     }
                 }

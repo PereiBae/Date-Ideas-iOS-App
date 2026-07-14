@@ -30,6 +30,10 @@ struct RootView: View {
             }
             .badge(store.dealAlertIdeas.count)
 
+            Tab("You", systemImage: "person.crop.circle") {
+                AccountWorkbookView()
+            }
+
             Tab("Search", systemImage: "magnifyingglass", role: .search) {
                 SearchView()
             }
@@ -83,6 +87,7 @@ struct RootView: View {
         }
         .onChange(of: scenePhase) { _, newPhase in
             if newPhase == .active {
+                store.resumeSharedAutoImport()
                 refreshImportSignals()
             }
         }
@@ -111,6 +116,15 @@ struct RootView: View {
         queuedShareCount = SharedImportQueue.pendingCount()
         if queuedShareCount > 0 {
             CaptionExtractorPrewarmer.prewarm()
+
+            // Shared links import themselves; the user only reviews and saves.
+            // After each save the next queued link starts automatically.
+            if !store.sharedAutoImportPaused, store.pendingDraft == nil, store.importStage == nil {
+                Task {
+                    await store.importQueuedShareIfNeeded()
+                    refreshImportSignals()
+                }
+            }
         }
 
         let pasteboard = UIPasteboard.general
@@ -157,16 +171,16 @@ struct SaveToastAccessory: View {
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: "checkmark.circle.fill")
-                .foregroundStyle(.green)
+                .foregroundStyle(Theme.visited)
 
             Text(workbookName.map { "Saved to \($0)" } ?? "Saved")
-                .font(.subheadline.weight(.medium))
+                .font(.ui(.subheadline, weight: .medium))
                 .lineLimit(1)
 
             Spacer(minLength: 8)
 
             Button("View", action: onView)
-                .font(.subheadline.weight(.semibold))
+                .font(.ui(.subheadline, weight: .semibold))
                 .buttonStyle(.borderless)
 
             Button(action: onDismiss) {
@@ -191,7 +205,7 @@ struct ClipboardImportAccessory: View {
                 .foregroundStyle(Theme.accent)
 
             Text("Link copied")
-                .font(.subheadline.weight(.medium))
+                .font(.ui(.subheadline, weight: .medium))
                 .lineLimit(1)
 
             Spacer(minLength: 8)
@@ -224,14 +238,14 @@ struct SharedQueueAccessory: View {
                     .foregroundStyle(Theme.accent)
 
                 Text(count == 1 ? "1 shared link ready" : "\(count) shared links ready")
-                    .font(.subheadline.weight(.medium))
+                    .font(.ui(.subheadline, weight: .medium))
                     .foregroundStyle(.primary)
                     .lineLimit(1)
 
                 Spacer(minLength: 8)
 
                 Text("Import")
-                    .font(.subheadline.weight(.semibold))
+                    .font(.ui(.subheadline, weight: .semibold))
                     .foregroundStyle(Theme.accent)
             }
             .padding(.horizontal, 14)
@@ -246,44 +260,40 @@ struct SavedTabView: View {
     @State private var importURL = ""
     @State private var importText = ""
     @State private var showingImportField = false
-    @State private var showingAccount = false
     @State private var showingWorkbooks = false
     @State private var showingJoinWorkbook = false
 
     var body: some View {
         NavigationStack {
             IdeaListView()
+                // Import floating action button (mockup design).
+                .overlay(alignment: .bottomTrailing) {
+                    Button {
+                        showingImportField = true
+                    } label: {
+                        Image(systemName: "plus")
+                            .font(.title2.weight(.bold))
+                            .foregroundStyle(.white)
+                            .frame(width: 56, height: 56)
+                            .background(Theme.accentGradient, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                            .shadow(color: Theme.accent.opacity(0.45), radius: 12, y: 6)
+                    }
+                    .accessibilityLabel("Import a date idea")
+                    .padding(.trailing, 20)
+                    .padding(.bottom, 12)
+                }
                 .navigationTitle(collaborationStore.activeWorkbook?.name ?? "Saved")
                 .toolbarTitleMenu {
                     workbookMenuItems
                 }
                 .toolbar {
-                    ToolbarItemGroup(placement: .topBarLeading) {
-                        Button {
-                            showingAccount = true
-                        } label: {
-                            Label("Account", systemImage: collaborationStore.currentUser == nil ? "person.crop.circle" : "person.crop.circle.fill")
-                        }
-
+                    ToolbarItem(placement: .topBarLeading) {
                         Menu {
                             workbookMenuItems
                         } label: {
                             Label("Workbooks", systemImage: "books.vertical")
                         }
                     }
-
-                    ToolbarItem(placement: .topBarTrailing) {
-                        Button {
-                            showingImportField = true
-                        } label: {
-                            Label("Import", systemImage: "square.and.arrow.down")
-                        }
-                    }
-                }
-                .sheet(isPresented: $showingAccount) {
-                    AccountWorkbookView()
-                        .tint(Theme.accent)
-                        .environmentObject(collaborationStore)
                 }
                 .sheet(isPresented: $showingWorkbooks) {
                     NavigationStack {
@@ -387,6 +397,7 @@ struct SearchView: View {
                     }
                 }
             }
+            .themedScreenBackground()
             .navigationTitle("Search")
             .navigationDestination(for: UUID.self) { ideaID in
                 if let idea = store.ideas.first(where: { $0.id == ideaID }) {
@@ -461,15 +472,20 @@ struct AuthenticationGateView: View {
                         }
                         .frame(maxWidth: .infinity)
                     }
-                    .buttonStyle(.glassProminent)
-                    .controlSize(.large)
+                    .buttonStyle(.plain)
+                    .font(.ui(.body, weight: .bold))
+                    .foregroundStyle(Color(light: 0x7A3418, dark: 0x7A3418))
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 54)
+                    .background(.white, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    .opacity(canSubmit ? 1 : 0.55)
                     .disabled(!canSubmit)
                     .padding(.top, 4)
 
                     if let errorMessage = collaborationStore.errorMessage {
                         Text(errorMessage)
-                            .font(.footnote)
-                            .foregroundStyle(.red)
+                            .font(.ui(.footnote))
+                            .foregroundStyle(Color(light: 0xFFE3DC, dark: 0xFFE3DC))
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
 
@@ -480,15 +496,16 @@ struct AuthenticationGateView: View {
                         collaborationStore.errorMessage = nil
                     } label: {
                         Text(mode == .signIn ? "New here? Create an account" : "Have an account? Sign in")
-                            .font(.subheadline.weight(.medium))
+                            .font(.ui(.subheadline, weight: .medium))
+                            .foregroundStyle(.white)
                     }
                     .padding(.top, 8)
                 }
                 .padding(.horizontal, 24)
 
                 Label("Your saved places stay private to your workbooks", systemImage: "lock")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .font(.ui(.footnote))
+                    .foregroundStyle(.white.opacity(0.75))
                     .padding(.top, 28)
                     .padding(.horizontal, 24)
                     .multilineTextAlignment(.center)
@@ -496,25 +513,34 @@ struct AuthenticationGateView: View {
             .frame(maxWidth: 480)
             .frame(maxWidth: .infinity)
         }
-        .background(Color(.systemGroupedBackground))
+        .background(
+            LinearGradient(
+                colors: [Color(light: 0xC25A2A, dark: 0xA34A20), Color(light: 0x7A3418, dark: 0x5E2812)],
+                startPoint: .topLeading,
+                endPoint: .bottom
+            )
+            .ignoresSafeArea()
+        )
+        .environment(\.colorScheme, .dark)
         .scrollDismissesKeyboard(.interactively)
     }
 
     private var brandHeader: some View {
         VStack(spacing: 18) {
             HStack(spacing: 10) {
-                brandCard(color: .teal, symbol: "fork.knife", rotation: -8, offsetY: 6)
-                brandCard(color: .orange, symbol: "heart.fill", rotation: 0, offsetY: -6)
-                brandCard(color: .blue, symbol: "mappin.and.ellipse", rotation: 8, offsetY: 6)
+                brandCard(color: Color(light: 0xF58A3C, dark: 0xF58A3C), symbol: "fork.knife", rotation: -8, offsetY: 6)
+                brandCard(color: Color(light: 0xE86FA0, dark: 0xE86FA0), symbol: "heart.fill", rotation: 0, offsetY: -6)
+                brandCard(color: Color(light: 0xE8551A, dark: 0xE8551A), symbol: "mappin.and.ellipse", rotation: 8, offsetY: 6)
             }
             .accessibilityHidden(true)
 
             Text("RendezQueue")
-                .font(.system(.largeTitle, design: .serif).weight(.bold))
+                .font(.displayHeavy(.largeTitle))
+                .foregroundStyle(.white)
 
-            Text("Save the places you find, plan them together.")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+            Text("Your next date, already saved.")
+                .font(.ui(.subheadline))
+                .foregroundStyle(.white.opacity(0.8))
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 32)
         }
@@ -541,7 +567,7 @@ struct AuthenticationGateView: View {
                 .frame(height: 0.5)
 
             Text("or use email")
-                .font(.footnote)
+                .font(.ui(.footnote))
                 .foregroundStyle(.secondary)
                 .fixedSize()
 
@@ -560,10 +586,10 @@ struct AuthenticationGateView: View {
 
             VStack(alignment: .leading, spacing: 2) {
                 Text("Sign-in is temporarily unavailable")
-                    .font(.subheadline.weight(.semibold))
+                    .font(.ui(.subheadline, weight: .semibold))
 
                 Text(setupHint)
-                    .font(.footnote)
+                    .font(.ui(.footnote))
                     .foregroundStyle(.secondary)
             }
         }
@@ -613,10 +639,11 @@ private struct AuthFieldStyle: ViewModifier {
         content
             .padding(.horizontal, 14)
             .padding(.vertical, 13)
-            .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 12))
+            .foregroundStyle(.white)
+            .background(.white.opacity(0.14), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
             .overlay {
-                RoundedRectangle(cornerRadius: 12)
-                    .strokeBorder(Color(.separator), lineWidth: 0.5)
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .strokeBorder(.white.opacity(0.22), lineWidth: 1)
             }
     }
 }
@@ -635,7 +662,7 @@ struct AccountWorkbookView: View {
                 if !collaborationStore.canUseFirebase {
                     Section {
                         Label("Sign-in is temporarily unavailable. Please try again later.", systemImage: "exclamationmark.triangle.fill")
-                            .font(.footnote)
+                            .font(.ui(.footnote))
                             .foregroundStyle(.secondary)
                     }
                 }
@@ -649,19 +676,13 @@ struct AccountWorkbookView: View {
                 if let errorMessage = collaborationStore.errorMessage {
                     Section {
                         Text(errorMessage)
-                            .font(.footnote)
+                            .font(.ui(.footnote))
                             .foregroundStyle(.red)
                     }
                 }
             }
-            .navigationTitle("Account")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Done") {
-                        dismiss()
-                    }
-                }
-            }
+            .themedScreenBackground()
+            .navigationTitle("You")
         }
     }
 
@@ -720,7 +741,7 @@ struct AccountWorkbookView: View {
                     Text(user.displayName)
                     if let email = user.email {
                         Text(email)
-                            .font(.footnote)
+                            .font(.ui(.footnote))
                             .foregroundStyle(.secondary)
                     }
                 }
@@ -746,11 +767,11 @@ struct AccountWorkbookView: View {
 
                     if let activeWorkbook = collaborationStore.activeWorkbook {
                         Text("Active: \(activeWorkbook.name)")
-                            .font(.footnote)
+                            .font(.ui(.footnote))
                             .foregroundStyle(.secondary)
                     } else {
                         Text("Setting up your personal workbook")
-                            .font(.footnote)
+                            .font(.ui(.footnote))
                             .foregroundStyle(.secondary)
                     }
                 }
@@ -928,7 +949,7 @@ struct ContributorAvatar: View {
     var body: some View {
         ZStack {
             Circle()
-                .fill(Theme.accent.opacity(0.16))
+                .fill(Theme.avatarGradient)
 
             if let imageURL {
                 AsyncImage(url: imageURL) { phase in
@@ -956,7 +977,7 @@ struct ContributorAvatar: View {
         Text(initials)
             .font(.system(size: size * 0.38, weight: .bold))
             .minimumScaleFactor(0.6)
-            .foregroundStyle(Theme.accent)
+            .foregroundStyle(.white)
     }
 }
 
@@ -973,14 +994,14 @@ struct DealAlertsView: View {
                         NavigationLink(value: idea.id) {
                             VStack(alignment: .leading, spacing: 8) {
                                 Text(idea.title)
-                                    .font(.headline)
+                                    .font(.ui(.headline, weight: .semibold))
 
                                 ForEach(alertDeals(for: idea)) { deal in
                                     VStack(alignment: .leading, spacing: 4) {
                                         Text(deal.title)
-                                            .font(.subheadline.weight(.semibold))
+                                            .font(.ui(.subheadline, weight: .semibold))
                                         Text(deal.details)
-                                            .font(.footnote)
+                                            .font(.ui(.footnote))
                                             .foregroundStyle(.secondary)
                                             .lineLimit(3)
                                         DealStatusLine(deal: deal)
@@ -993,6 +1014,7 @@ struct DealAlertsView: View {
                     }
                 }
             }
+            .themedScreenBackground()
             .navigationTitle("Deals")
             .navigationDestination(for: UUID.self) { ideaID in
                 if let idea = store.ideas.first(where: { $0.id == ideaID }) {
@@ -1111,7 +1133,7 @@ struct PlacesMapView: View {
             .overlay(alignment: .bottomLeading) {
                 if isFilterActive && selectedIdea == nil && !showingCategoryPicker {
                     Text(countText)
-                        .font(.footnote.weight(.medium))
+                        .font(.ui(.footnote, weight: .medium))
                         .padding(.horizontal, 12)
                         .padding(.vertical, 7)
                         .glassEffect(.regular, in: .capsule)
@@ -1241,7 +1263,7 @@ struct PlacesMapView: View {
             Button("Cancel") {
                 closeSearch()
             }
-            .font(.subheadline.weight(.medium))
+            .font(.ui(.subheadline, weight: .medium))
         }
     }
 
@@ -1264,7 +1286,7 @@ struct PlacesMapView: View {
                 .accessibilityAddTraits(visitFilter == filter ? .isSelected : [])
             }
         }
-        .font(.subheadline.weight(.medium))
+        .font(.ui(.subheadline, weight: .medium))
         .buttonBorderShape(.capsule)
         .sensoryFeedback(.selection, trigger: visitFilter)
     }
@@ -1317,7 +1339,7 @@ struct PlacesMapView: View {
                     .foregroundStyle(isSelected ? Color.white : Color.primary)
 
                 Image(systemName: systemImage)
-                    .font(.subheadline.weight(.medium))
+                    .font(.ui(.subheadline, weight: .medium))
                     .frame(width: 36, height: 36)
                     .background(isSelected ? AnyShapeStyle(Theme.accent) : AnyShapeStyle(.regularMaterial), in: Circle())
                     .foregroundStyle(isSelected ? Color.white : Color.primary)
@@ -1359,7 +1381,7 @@ struct PlacesMapView: View {
             VStack(spacing: 0) {
                 if searchResults.isEmpty {
                     Text("No saved places match \"\(query)\"")
-                        .font(.footnote)
+                        .font(.ui(.footnote))
                         .foregroundStyle(.secondary)
                         .padding(14)
                 } else {
@@ -1369,7 +1391,7 @@ struct PlacesMapView: View {
                         } label: {
                             HStack(spacing: 10) {
                                 Circle()
-                                    .fill(idea.hasBeenVisited(by: store.currentUserID) ? Color.green : Color.red)
+                                    .fill(idea.hasBeenVisited(by: store.currentUserID) ? Theme.visited : Theme.endingSoon)
                                     .frame(width: 10, height: 10)
 
                                 VStack(alignment: .leading, spacing: 1) {
@@ -1379,7 +1401,7 @@ struct PlacesMapView: View {
                                         .lineLimit(1)
 
                                     Text(idea.location.address)
-                                        .font(.caption)
+                                        .font(.ui(.caption))
                                         .foregroundStyle(.secondary)
                                         .lineLimit(1)
                                 }
@@ -1521,25 +1543,26 @@ struct MapPreviewCard: View {
                         .lineLimit(1)
 
                     Text(subtitle)
-                        .font(.caption)
+                        .font(.ui(.caption))
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
 
                     Label(statusText, systemImage: isVisited ? "checkmark.circle.fill" : "heart.fill")
                         .font(.caption2.weight(.medium))
-                        .foregroundStyle(isVisited ? Color.green : Color.red)
+                        .foregroundStyle(isVisited ? Theme.visited : Theme.endingSoon)
                         .lineLimit(1)
                 }
 
                 Spacer(minLength: 4)
 
                 Image(systemName: "chevron.right")
-                    .font(.footnote.weight(.semibold))
+                    .font(.ui(.footnote, weight: .semibold))
                     .foregroundStyle(.tertiary)
                     .padding(.trailing, 2)
             }
             .padding(12)
             .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
+            .shadow(color: Theme.cardShadow, radius: 14, y: 6)
         }
         .buttonStyle(.plain)
         .overlay(alignment: .topTrailing) {
@@ -1561,7 +1584,7 @@ struct WorkbookMapPin: View {
     var isSelected = false
 
     private var pinColor: Color {
-        isVisited ? .green : .red
+        isVisited ? Theme.visited : Theme.endingSoon
     }
 
     private var outerSize: CGFloat { isSelected ? 46 : 38 }
@@ -1633,7 +1656,7 @@ struct ImportLinkView: View {
 
                     if let screenshotError {
                         Text(screenshotError)
-                            .font(.footnote)
+                            .font(.ui(.footnote))
                             .foregroundStyle(.red)
                     }
                 }
@@ -1644,6 +1667,7 @@ struct ImportLinkView: View {
                         .textInputAutocapitalization(.sentences)
                 }
             }
+            .themedScreenBackground()
             .navigationTitle("Import Link")
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {

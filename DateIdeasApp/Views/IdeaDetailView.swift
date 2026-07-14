@@ -49,6 +49,7 @@ struct IdeaDetailView: View {
                 dealHistorySection
             }
         }
+        .themedScreenBackground()
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
@@ -88,7 +89,7 @@ struct IdeaDetailView: View {
         .overlay(alignment: .bottom) {
             if let copiedWorkbookName {
                 Label("Copied to \(copiedWorkbookName)", systemImage: "checkmark.circle.fill")
-                    .font(.subheadline.weight(.medium))
+                    .font(.ui(.subheadline, weight: .medium))
                     .foregroundStyle(.primary)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 10)
@@ -168,7 +169,7 @@ struct IdeaDetailView: View {
                             Text("View post")
                             Image(systemName: "arrow.up.right")
                         }
-                        .font(.caption.weight(.semibold))
+                        .font(.ui(.caption, weight: .semibold))
                         .padding(.horizontal, 10)
                         .padding(.vertical, 6)
                         .background(.thinMaterial, in: Capsule())
@@ -187,16 +188,16 @@ struct IdeaDetailView: View {
             currentUserHasVisited ? "Visited" : "Want to go",
             systemImage: currentUserHasVisited ? "checkmark.circle.fill" : "heart.fill"
         )
-        .font(.caption.weight(.semibold))
+        .font(.ui(.caption, weight: .semibold))
         .foregroundStyle(.white)
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
-        .background(currentUserHasVisited ? Color.green : Color.red, in: Capsule())
+        .background(currentUserHasVisited ? Theme.visited : Theme.endingSoon, in: Capsule())
     }
 
     private var categoryBadge: some View {
         Label(currentIdea.category.rawValue, systemImage: currentIdea.category.systemImage)
-            .font(.caption.weight(.semibold))
+            .font(.ui(.caption, weight: .semibold))
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
             .background(.thinMaterial, in: Capsule())
@@ -212,7 +213,7 @@ struct IdeaDetailView: View {
                         .font(.placeTitle(.title2))
 
                     Text(currentIdea.location.address)
-                        .font(.subheadline)
+                        .font(.ui(.subheadline))
                         .foregroundStyle(.secondary)
                 }
 
@@ -221,7 +222,7 @@ struct IdeaDetailView: View {
                         ContributorAvatar(name: contributor, imageURL: currentIdea.createdByPhotoURL, size: 18)
 
                         Text("Added by \(contributor) · \(currentIdea.createdAt.formatted(date: .abbreviated, time: .omitted))")
-                            .font(.caption)
+                            .font(.ui(.caption))
                             .foregroundStyle(.secondary)
                     }
                     .accessibilityElement(children: .ignore)
@@ -232,7 +233,7 @@ struct IdeaDetailView: View {
 
                 if !currentIdea.factualSummary.isEmpty {
                     Text(currentIdea.factualSummary)
-                        .font(.body)
+                        .font(.ui(.body))
                 }
 
                 if !currentIdea.displayTagTitles.isEmpty {
@@ -249,36 +250,55 @@ struct IdeaDetailView: View {
 
     private var actionRow: some View {
         HStack(spacing: 8) {
-            Button {
+            detailActionButton(title: "Log visit", systemImage: "star.fill", isPrimary: true) {
                 showingVisitSheet = true
-            } label: {
-                Label("Log visit", systemImage: "plus")
-                    .font(.subheadline.weight(.semibold))
-                    .frame(maxWidth: .infinity)
             }
-            .buttonStyle(.glass)
 
-            Button {
+            detailActionButton(title: "Directions", systemImage: "paperplane") {
                 openDirections()
-            } label: {
-                Label("Directions", systemImage: "arrow.triangle.turn.up.right.diamond")
-                    .font(.subheadline.weight(.medium))
-                    .frame(maxWidth: .infinity)
             }
-            .buttonStyle(.glass)
 
             if let website = currentIdea.location.websiteURL {
-                Button {
+                detailActionButton(title: "Website", systemImage: "globe") {
                     openURL(website)
-                } label: {
-                    Image(systemName: "safari")
-                        .font(.subheadline.weight(.medium))
                 }
-                .buttonStyle(.glass)
-                .accessibilityLabel("Website")
             }
         }
-        .buttonBorderShape(.capsule)
+    }
+
+    // Mockup action style: icon over label, white card with hairline border;
+    // the primary action carries the orange gradient.
+    private func detailActionButton(
+        title: String,
+        systemImage: String,
+        isPrimary: Bool = false,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            VStack(spacing: 3) {
+                Image(systemName: systemImage)
+                    .font(.ui(.subheadline, weight: .semibold))
+
+                Text(title)
+                    .font(.ui(.footnote, weight: .semibold))
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: 52)
+            .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(isPrimary ? AnyShapeStyle(.white) : AnyShapeStyle(.primary))
+        .background {
+            if isPrimary {
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(Theme.accentGradient)
+            } else {
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(Theme.cardBackground)
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .strokeBorder(Theme.hairline, lineWidth: 1)
+            }
+        }
     }
 
     // MARK: Deals
@@ -288,16 +308,16 @@ struct IdeaDetailView: View {
             ForEach(currentIdea.activeDeals) { deal in
                 HStack(alignment: .top, spacing: 10) {
                     Image(systemName: "tag.fill")
-                        .font(.subheadline)
+                        .font(.ui(.subheadline))
                         .foregroundStyle(Theme.accent)
                         .padding(.top, 2)
 
                     VStack(alignment: .leading, spacing: 4) {
                         Text(deal.title.isEmpty ? "Deal" : deal.title)
-                            .font(.subheadline.weight(.semibold))
+                            .font(.ui(.subheadline, weight: .semibold))
 
                         Text(deal.details)
-                            .font(.footnote)
+                            .font(.ui(.footnote))
                             .foregroundStyle(.secondary)
 
                         DealStatusLine(deal: deal)
@@ -318,10 +338,10 @@ struct IdeaDetailView: View {
                 ForEach(expiredDeals) { deal in
                     VStack(alignment: .leading, spacing: 4) {
                         Text(deal.title.isEmpty ? "Deal" : deal.title)
-                            .font(.subheadline.weight(.semibold))
+                            .font(.ui(.subheadline, weight: .semibold))
 
                         Text(deal.details)
-                            .font(.footnote)
+                            .font(.ui(.footnote))
                             .foregroundStyle(.secondary)
 
                         DealStatusLine(deal: deal)
@@ -329,7 +349,7 @@ struct IdeaDetailView: View {
                     .padding(.vertical, 2)
                 }
             }
-            .font(.subheadline)
+            .font(.ui(.subheadline))
             .foregroundStyle(.secondary)
         }
     }
@@ -344,7 +364,7 @@ struct IdeaDetailView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 12))
 
                 Label(currentIdea.location.address, systemImage: "mappin.and.ellipse")
-                    .font(.subheadline)
+                    .font(.ui(.subheadline))
                     .foregroundStyle(.secondary)
             }
             .padding(.vertical, 4)
@@ -361,7 +381,7 @@ struct IdeaDetailView: View {
                         ProgressView()
                     } else {
                         Image(systemName: "chevron.right")
-                            .font(.footnote.weight(.semibold))
+                            .font(.ui(.footnote, weight: .semibold))
                             .foregroundStyle(.tertiary)
                     }
                 }
@@ -399,7 +419,7 @@ struct IdeaDetailView: View {
         Section {
             if currentIdea.visits.isEmpty {
                 Text("Not visited yet — log your first visit.")
-                    .font(.subheadline)
+                    .font(.ui(.subheadline))
                     .foregroundStyle(.secondary)
             } else {
                 if !currentUserHasVisited, collaborationStore.activeWorkbook?.isPersonal == false {
@@ -407,7 +427,7 @@ struct IdeaDetailView: View {
                         "You haven't visited yet. Visits from workbook members are shown below.",
                         systemImage: "person.2"
                     )
-                    .font(.footnote)
+                    .font(.ui(.footnote))
                     .foregroundStyle(.secondary)
                 }
 
@@ -419,7 +439,7 @@ struct IdeaDetailView: View {
                             VisitRowView(visit: visit)
 
                             Image(systemName: "chevron.right")
-                                .font(.footnote.weight(.semibold))
+                                .font(.ui(.footnote, weight: .semibold))
                                 .foregroundStyle(.tertiary)
                         }
                         .contentShape(Rectangle())
@@ -432,7 +452,7 @@ struct IdeaDetailView: View {
             }
         } header: {
             HStack {
-                Text("Visits")
+                SectionLabel("Visits")
 
                 Spacer()
 
@@ -440,7 +460,7 @@ struct IdeaDetailView: View {
                     showingVisitSheet = true
                 } label: {
                     Label("Add", systemImage: "plus")
-                        .font(.footnote.weight(.semibold))
+                        .font(.ui(.footnote, weight: .semibold))
                 }
                 .buttonStyle(.borderless)
             }
@@ -460,10 +480,10 @@ struct IdeaDetailView: View {
                             Text(post.platform)
 
                             Image(systemName: "arrow.up.right")
-                                .font(.caption2.weight(.semibold))
+                                .font(.ui(.caption2, weight: .semibold))
                                 .foregroundStyle(.secondary)
                         }
-                        .font(.footnote.weight(.medium))
+                        .font(.ui(.footnote, weight: .medium))
                         .padding(.horizontal, 11)
                         .padding(.vertical, 6)
                         .background {
@@ -532,6 +552,7 @@ struct EditIdeaView: View {
                 dealsSection
             }
             .keyboardDismissal()
+            .themedScreenBackground()
             .navigationTitle("Edit Place")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -573,7 +594,7 @@ struct EditIdeaView: View {
             .textInputAutocapitalization(.never)
             .keyboardType(.URL)
             .autocorrectionDisabled()
-            .font(.footnote)
+            .font(.ui(.footnote))
             .foregroundStyle(.secondary)
         }
     }
@@ -668,14 +689,18 @@ struct EditIdeaView: View {
 
 struct TagPill: View {
     let title: String
+    var prominent = true
 
     var body: some View {
         Text(title)
-            .font(.caption.weight(.medium))
-            .foregroundStyle(Theme.accent)
+            .font(.ui(.caption2, weight: .semibold))
+            .foregroundStyle(prominent ? Theme.accentTintForeground : Theme.neutralChipForeground)
             .padding(.horizontal, 9)
             .padding(.vertical, 4)
-            .background(Theme.accent.opacity(0.12), in: Capsule())
+            .background(
+                prominent ? Theme.accentTintBackground : Theme.neutralChipBackground,
+                in: RoundedRectangle(cornerRadius: 7, style: .continuous)
+            )
     }
 }
 
@@ -691,14 +716,14 @@ struct DealStatusLine: View {
                 Text(endsAt, style: .date)
             }
         }
-        .font(.caption.weight(.medium))
+        .font(.ui(.caption, weight: .medium))
         .foregroundStyle(statusColor)
     }
 
     private var statusColor: Color {
         if deal.isExpired { return .secondary }
-        if deal.isEndingSoon { return .orange }
-        return .green
+        if deal.isEndingSoon { return Theme.endingSoon }
+        return Theme.visited
     }
 }
 
@@ -716,7 +741,7 @@ struct DealEditorRows: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             TextField("Deal title", text: $deal.title)
-                .font(.headline)
+                .font(.ui(.headline, weight: .semibold))
 
             TextField("Details", text: $deal.details, axis: .vertical)
                 .lineLimit(2...5)
@@ -762,7 +787,7 @@ struct DealEditorRows: View {
 
             if let countdown = deal.countdownText {
                 Label(countdown, systemImage: deal.isEndingSoon ? "clock.badge.exclamationmark" : "clock")
-                    .font(.caption)
+                    .font(.ui(.caption))
                     .foregroundStyle(deal.isEndingSoon ? .orange : .secondary)
             }
         }
@@ -804,21 +829,21 @@ struct VisitRowView: View {
                 VStack(alignment: .leading, spacing: 1) {
                     if let title = visit.title, !title.isEmpty {
                         Text(title)
-                            .font(.headline)
+                            .font(.ui(.headline, weight: .semibold))
 
                         Text(visit.visitedAt, style: .date)
-                            .font(.caption)
+                            .font(.ui(.caption))
                             .foregroundStyle(.secondary)
                     } else {
                         Text(visit.visitedAt, style: .date)
-                            .font(.headline)
+                            .font(.ui(.headline, weight: .semibold))
                     }
                 }
 
                 Spacer()
 
                 Label(visit.review.overallScore.formatted(.number.precision(.fractionLength(1))), systemImage: "star.fill")
-                    .foregroundStyle(.yellow)
+                    .foregroundStyle(Theme.accent)
             }
 
             if collaborationStore.activeWorkbook?.isPersonal == false {
@@ -827,13 +852,13 @@ struct VisitRowView: View {
 
             if let amountSpent = visit.amountSpent {
                 Text("Spent \(amountSpent.formatted(.currency(code: "SGD")))")
-                    .font(.subheadline)
+                    .font(.ui(.subheadline))
                     .foregroundStyle(.secondary)
             }
 
             if !visit.notes.isEmpty {
                 Text(visit.notes)
-                    .font(.subheadline)
+                    .font(.ui(.subheadline))
             }
 
             if !visit.localPhotoNames.isEmpty {
@@ -841,7 +866,7 @@ struct VisitRowView: View {
             } else if !visit.photoNames.isEmpty {
                 // Photo files live on the device that logged the visit.
                 Label("\(visit.photoNames.count) photo\(visit.photoNames.count == 1 ? "" : "s") on your partner's device", systemImage: "photo.on.rectangle")
-                    .font(.caption)
+                    .font(.ui(.caption))
                     .foregroundStyle(.secondary)
             }
         }

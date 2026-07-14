@@ -62,14 +62,35 @@ Treat any build error as blocking. Stale-file warnings mentioning
 
 ## Design language (do not deviate)
 
-- Accent: rosé — `Theme.accent` (#C74069). Always paint custom accent fills/
-  foregrounds with `Theme.accent`, NEVER `Color.accentColor` — the latter is
-  resolved from the environment at render time and can come up system blue on
-  the first frame of List rows before re-resolving (blue flash on launch).
-  `.tint(Theme.accent)` on sheet roots still handles system control tinting.
+- Palette (from the approved Claude Design mockup, 2026-07-09): warm cream
+  page background (`Theme.background`), white cards (`Theme.cardBackground`)
+  with `Theme.hairline` borders, bold orange accent — `Theme.accent`
+  (#F26B1D light / #F58A3C dark). Primary CTAs use `Theme.accentGradient`;
+  contributor avatars use `Theme.avatarGradient` (pink). All Theme colors are
+  light/dark dynamic via `Color(light:dark:)`.
+- Always paint custom accent fills/foregrounds with `Theme.accent`, NEVER
+  `Color.accentColor` — the latter is resolved from the environment at render
+  time and can come up system blue on the first frame of List rows before
+  re-resolving (blue flash on launch). `.tint(Theme.accent)` on sheet roots
+  still handles system control tinting.
+- Tag chips are small rounded RECTANGLES (radius 7–8), not capsules:
+  orange-tinted (`Theme.accentTintBackground/Foreground`) for primary tags,
+  neutral (`Theme.neutralChip*`) for secondary. Capsules remain for filter/
+  control chips. Stars are orange (`Theme.accent`), not yellow.
 - `Theme.aiGradient` (indigo→purple) is RESERVED for Apple Intelligence
   provenance UI only (sparkles, AI badges). Never use it for anything else.
-- Place names and large titles use New York serif via `Font.placeTitle(_:)`.
+- Typography: REAL brand fonts are bundled (DateIdeasApp/Fonts, registered in
+  UIAppFonts): Bricolage Grotesque (display — `Font.placeTitle`,
+  `Font.displayHeavy`, nav titles via appearance), Hanken Grotesk (UI/body —
+  `Font.ui(_:weight:)`, also the app-wide default via `.font(.ui(.body))` at
+  root), Space Mono (`Font.mono`, `SectionLabel`). All font helpers scale with
+  Dynamic Type via `relativeTo`. Never use `.system` fonts for text that the
+  helpers cover.
+- Screens behind lists/forms use `.themedScreenBackground()` (warm paper
+  gradient `Theme.paperGradient`). Saved-list rows are floating white cards
+  (rounded 16, `Theme.cardShadow`) on `.listStyle(.plain)`.
+- Warm text ramp: `Theme.textPrimary/textSecondary/textTertiary`; status
+  colors `Theme.visited` (green) and `Theme.endingSoon` (red).
 - Liquid Glass is for the control layer only: use `.buttonStyle(.glass)` and
   `.buttonStyle(.glassProminent)` for floating/primary buttons.
 - Status colors: green = visited (checkmark icon), red = want to go (heart).
@@ -80,7 +101,7 @@ Treat any build error as blocking. Stale-file warnings mentioning
 ## Reuse these components — do not reinvent
 
 `FilterChip` (capsule toggle chip), `EditableTagChips` (removable tag chips +
-add field), `FlowLayout` (wrapping chip layout),
+add field), `FlowLayout` (wrapping chip layout), `FactorBarRow` (rating bar),
 `IconFilterChip`, `CategoryTile`, `IdeaCoverImage`, `ContributorAvatar`,
 `TagPill`, `DealStatusLine`, `DealEditorRows`, `PlaceMapView`,
 `SaveToastAccessory`, `GoogleSignInButton`/`GoogleLogoMark`,

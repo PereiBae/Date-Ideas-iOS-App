@@ -56,9 +56,13 @@ struct ExtractionProgressView: View {
                 }
 
                 Section {
-                    skeletonFields
+                    extractedSoFarCard
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
+                        .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
                 }
             }
+            .themedScreenBackground()
             .navigationTitle("Importing")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -98,7 +102,15 @@ struct ExtractionProgressView: View {
     private var extractionFootnote: some View {
         switch stage {
         case .extracting(.appleIntelligence):
-            Label("Runs on this device. The caption never leaves your iPhone.", systemImage: "lock")
+            HStack(spacing: 8) {
+                Image(systemName: "lock")
+                    .foregroundStyle(Theme.visited)
+
+                Text("On-device · nothing leaves your iPhone")
+            }
+            .font(.ui(.caption))
+            .foregroundStyle(Theme.textTertiary)
+            .frame(maxWidth: .infinity)
         case .extracting(.parser):
             Text("Apple Intelligence isn't available right now, so the caption is read directly. You can fill in anything missing on the next screen.")
         default:
@@ -119,7 +131,7 @@ struct ExtractionProgressView: View {
     private func stageIndicator(index: Int) -> some View {
         if index < stageIndex {
             Image(systemName: "checkmark.circle.fill")
-                .foregroundStyle(.green)
+                .foregroundStyle(Theme.visited)
                 .accessibilityLabel("Done")
         } else if index == stageIndex {
             ProgressView()
@@ -131,49 +143,68 @@ struct ExtractionProgressView: View {
         }
     }
 
-    private var skeletonFields: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            if preview == nil || preview?.isEmpty == true {
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(.quaternary)
-                    .frame(height: 140)
-                    .opacity(shimmerOpacity)
+    // "EXTRACTED SO FAR" card: streamed name with a blinking cursor,
+    // shimmer bars standing in for fields still being generated.
+    private var extractedSoFarCard: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SectionLabel("Extracted so far")
+
+            HStack(spacing: 2) {
+                Text(preview?.name?.isEmpty == false ? (preview?.name ?? "") : "Listening…")
+                    .font(.displayHeavy(.title3))
+                    .foregroundStyle(preview?.name?.isEmpty == false ? Theme.textPrimary : Theme.textTertiary)
+                    .contentTransition(.interpolate)
+
+                RoundedRectangle(cornerRadius: 1)
+                    .fill(Theme.accent)
+                    .frame(width: 2, height: 18)
+                    .opacity(reduceMotion ? 0.8 : (shimmering ? 1 : 0.15))
+                    .animation(reduceMotion ? nil : .easeInOut(duration: 0.55).repeatForever(autoreverses: true), value: shimmering)
                     .accessibilityHidden(true)
             }
 
-            // Fields fill in live as Apple Intelligence streams them.
-            streamedField(label: "Name", value: preview?.name, placeholder: "A lovely place somewhere")
-            streamedField(label: "Location", value: preview?.address, placeholder: "12 Placeholder Road, Singapore")
-            streamedField(label: "Summary", value: preview?.summary, placeholder: "A short factual summary of the place appears here once extraction finishes.")
+            if let address = preview?.address, !address.isEmpty {
+                Text(address)
+                    .font(.ui(.footnote))
+                    .foregroundStyle(Theme.textTertiary)
+                    .contentTransition(.interpolate)
+            } else {
+                shimmerBar(width: nil)
+            }
+
+            if let summary = preview?.summary, !summary.isEmpty {
+                Text(summary)
+                    .font(.ui(.footnote))
+                    .foregroundStyle(Theme.textSecondary)
+                    .lineLimit(4)
+                    .contentTransition(.interpolate)
+            } else {
+                VStack(alignment: .leading, spacing: 6) {
+                    shimmerBar(width: nil)
+                    shimmerBar(width: 0.7)
+                }
+            }
         }
-        .padding(.vertical, 4)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(14)
+        .background(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(Theme.cardBackground)
+                .shadow(color: Theme.cardShadow, radius: 16, y: 8)
+        )
         .animation(.smooth(duration: 0.25), value: preview)
     }
 
-    private var shimmerOpacity: Double {
-        reduceMotion ? 0.6 : (shimmering ? 0.4 : 0.9)
-    }
-
-    @ViewBuilder
-    private func streamedField(label: String, value: String?, placeholder: String) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(label)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
-            if let value, !value.isEmpty {
-                Text(value)
-                    .font(.body)
-                    .contentTransition(.interpolate)
-            } else {
-                Text(placeholder)
-                    .font(.body)
-                    .redacted(reason: .placeholder)
-                    .opacity(shimmerOpacity)
-                    .animation(reduceMotion ? nil : .easeInOut(duration: 0.9).repeatForever(autoreverses: true), value: shimmering)
-                    .accessibilityHidden(true)
-            }
+    private func shimmerBar(width fraction: CGFloat?) -> some View {
+        GeometryReader { proxy in
+            RoundedRectangle(cornerRadius: 5)
+                .fill(Theme.neutralChipBackground)
+                .frame(width: fraction.map { proxy.size.width * $0 } ?? proxy.size.width)
+                .opacity(reduceMotion ? 0.7 : (shimmering ? 0.45 : 1))
+                .animation(reduceMotion ? nil : .easeInOut(duration: 0.9).repeatForever(autoreverses: true), value: shimmering)
         }
+        .frame(height: 9)
+        .accessibilityHidden(true)
     }
 }
 
@@ -232,6 +263,7 @@ struct ImportReviewView: View {
                 }
             }
             .keyboardDismissal()
+            .themedScreenBackground()
             .navigationTitle("Review Import")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -289,7 +321,7 @@ struct ImportReviewView: View {
             .textInputAutocapitalization(.never)
             .keyboardType(.URL)
             .autocorrectionDisabled()
-            .font(.footnote)
+            .font(.ui(.footnote))
             .foregroundStyle(.secondary)
         } footer: {
             if let note = draft.extractionNote, !note.isEmpty {
@@ -299,7 +331,7 @@ struct ImportReviewView: View {
     }
 
     private var detailsSection: some View {
-        Section("Details") {
+        Section {
             aiMarkedRow(.title) {
                 TextField("Name", text: $draft.extractedIdea.title)
                     .font(.placeTitle(.body))
@@ -320,15 +352,19 @@ struct ImportReviewView: View {
                 TextField("Summary", text: $draft.extractedIdea.factualSummary, axis: .vertical)
                     .lineLimit(3...6)
             }
+        } header: {
+            SectionLabel("Details")
         }
     }
 
     private var locationSection: some View {
-        Section("Location") {
+        Section {
             aiMarkedRow(.address) {
                 TextField("Address", text: $draft.extractedIdea.location.address, axis: .vertical)
                     .lineLimit(2...4)
             }
+        } header: {
+            SectionLabel("Address")
         }
     }
 
@@ -367,18 +403,20 @@ struct ImportReviewView: View {
     }
 
     private var sourceSection: some View {
-        Section("Source") {
+        Section {
             Text(draft.platform)
 
             Text(draft.rawCaption)
-                .font(.footnote)
+                .font(.ui(.footnote))
                 .foregroundStyle(.secondary)
 
             if draft.rawCaption.localizedCaseInsensitiveContains("no public caption metadata") {
                 Text("This platform did not expose the caption through the shared link. Add screenshots only when this happens.")
-                    .font(.footnote)
-                    .foregroundStyle(.orange)
+                    .font(.ui(.footnote))
+                    .foregroundStyle(Theme.endingSoon)
             }
+        } header: {
+            SectionLabel("Source")
         }
     }
 
@@ -394,7 +432,7 @@ struct ImportReviewView: View {
             draft.confidence.formatted(.percent.precision(.fractionLength(0))),
             systemImage: "checkmark.seal"
         )
-        .font(.caption.weight(.semibold))
+        .font(.ui(.caption, weight: .semibold))
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
         .background(badgeBackground, in: Capsule())
@@ -405,14 +443,14 @@ struct ImportReviewView: View {
     private var methodBadge: some View {
         if draft.extractionMethod == .appleIntelligence {
             Label("Apple Intelligence", systemImage: "sparkles")
-                .font(.caption.weight(.semibold))
+                .font(.ui(.caption, weight: .semibold))
                 .foregroundStyle(.white)
                 .padding(.horizontal, 10)
                 .padding(.vertical, 6)
                 .background(Theme.aiGradient, in: Capsule())
         } else {
             Label("Parsed from caption", systemImage: "slider.horizontal.3")
-                .font(.caption.weight(.semibold))
+                .font(.ui(.caption, weight: .semibold))
                 .padding(.horizontal, 10)
                 .padding(.vertical, 6)
                 .background(badgeBackground, in: Capsule())
@@ -433,7 +471,7 @@ struct ImportReviewView: View {
 
     private func sectionHeader(_ title: String, aiField: AIField) -> some View {
         HStack(spacing: 6) {
-            Text(title)
+            SectionLabel(title)
 
             if aiFields.contains(aiField) {
                 AIProvenanceMark()
@@ -461,20 +499,33 @@ struct ImportReviewView: View {
                 .pickerStyle(.navigationLink)
                 .alignmentGuide(.listRowSeparatorLeading) { _ in 0 }
             } header: {
-                Text("Save to")
+                SectionLabel("Save into")
             }
         }
     }
 
     private var saveBar: some View {
-        Button(action: save) {
-            Text(saveButtonTitle)
-                .fontWeight(.semibold)
-                .frame(maxWidth: .infinity)
+        VStack(spacing: 6) {
+            let queued = SharedImportQueue.pendingCount()
+            if queued > 0 {
+                Text("\(queued) more shared link\(queued == 1 ? "" : "s") will import after this one")
+                    .font(.ui(.caption, weight: .medium))
+                    .foregroundStyle(Theme.textTertiary)
+            }
+
+            Button(action: save) {
+                Text(saveButtonTitle)
+                    .font(.ui(.body, weight: .bold))
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 54)
+                    .background(Theme.accentGradient, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    .shadow(color: Theme.accent.opacity(0.5), radius: 12, y: 8)
+            }
+            .buttonStyle(.plain)
+            .opacity(draft.extractedIdea.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? 0.55 : 1)
+            .disabled(draft.extractedIdea.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         }
-        .buttonStyle(.glassProminent)
-        .controlSize(.large)
-        .disabled(draft.extractedIdea.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         .padding(.horizontal)
         .padding(.vertical, 10)
     }
@@ -511,16 +562,20 @@ struct EditableTagChips: View {
                         } label: {
                             HStack(spacing: 5) {
                                 Text(tag)
-                                    .font(.subheadline.weight(.medium))
+                                    .font(.ui(.subheadline, weight: .semibold))
 
                                 Image(systemName: "xmark")
-                                    .font(.caption2.weight(.semibold))
-                                    .foregroundStyle(.secondary)
+                                    .font(.ui(.caption2, weight: .semibold))
+                                    .opacity(0.6)
                             }
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 7)
-                            .foregroundStyle(Theme.accent)
-                            .background(Theme.accent.opacity(0.12), in: Capsule())
+                            .padding(.horizontal, 11)
+                            .padding(.vertical, 6)
+                            .foregroundStyle(Theme.accentTintForeground)
+                            .background(Theme.accentTintBackground, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                            .overlay {
+                                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                    .strokeBorder(Theme.accent.opacity(0.3), lineWidth: 1)
+                            }
                         }
                         .buttonStyle(.plain)
                         .accessibilityLabel("Remove tag \(tag)")
@@ -562,7 +617,7 @@ struct EditableTagChips: View {
 struct AIProvenanceMark: View {
     var body: some View {
         Image(systemName: "sparkle")
-            .font(.caption)
+            .font(.ui(.caption))
             .foregroundStyle(Theme.aiGradient)
             .accessibilityLabel("Filled by Apple Intelligence")
     }

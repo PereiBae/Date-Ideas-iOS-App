@@ -40,6 +40,18 @@
 		<key>UIApplicationSupportsMultipleScenes</key>
 		<false/>
 	</dict>
+	<key>UIAppFonts</key>
+	<array>
+		<string>Fonts/BricolageGrotesque-SemiBold.ttf</string>
+		<string>Fonts/BricolageGrotesque-Bold.ttf</string>
+		<string>Fonts/BricolageGrotesque-ExtraBold.ttf</string>
+		<string>Fonts/HankenGrotesk-Regular.ttf</string>
+		<string>Fonts/HankenGrotesk-Medium.ttf</string>
+		<string>Fonts/HankenGrotesk-SemiBold.ttf</string>
+		<string>Fonts/HankenGrotesk-Bold.ttf</string>
+		<string>Fonts/SpaceMono-Regular.ttf</string>
+		<string>Fonts/SpaceMono-Bold.ttf</string>
+	</array>
 	<key>UILaunchScreen</key>
 	<dict/>
 	<key>UISupportedInterfaceOrientations</key>

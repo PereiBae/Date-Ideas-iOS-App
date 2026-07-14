@@ -33,6 +33,7 @@
 		A00000000000000000000032 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000132 /* Assets.xcassets */; };
 		A00000000000000000000033 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000133 /* PrivacyInfo.xcprivacy */; };
 		A00000000000000000000034 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000133 /* PrivacyInfo.xcprivacy */; };
+		A00000000000000000000035 /* Fonts in Resources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000134 /* Fonts */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -85,6 +86,7 @@
 		A00000000000000000000131 /* FilterSheetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilterSheetView.swift; sourceTree = "<group>"; };
 		A00000000000000000000132 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		A00000000000000000000133 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		A00000000000000000000134 /* Fonts */ = {isa = PBXFileReference; lastKnownFileType = folder; path = Fonts; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -126,6 +128,7 @@
 				A00000000000000000000123 /* Services */,
 				A00000000000000000000124 /* Views */,
 				A00000000000000000000132 /* Assets.xcassets */,
+				A00000000000000000000134 /* Fonts */,
 				A00000000000000000000133 /* PrivacyInfo.xcprivacy */,
 				A0000000000000000000010F /* Info.plist */,
 				A00000000000000000000114 /* GoogleService-Info.plist */,
@@ -295,6 +298,7 @@
 				A0000000000000000000001A /* GoogleService-Info.plist in Resources */,
 				A00000000000000000000032 /* Assets.xcassets in Resources */,
 				A00000000000000000000033 /* PrivacyInfo.xcprivacy in Resources */,
+				A00000000000000000000035 /* Fonts in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -475,7 +479,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = DateIdeasApp/DateIdeasApp.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 4;
+				CURRENT_PROJECT_VERSION = 5;
 				DEVELOPMENT_ASSET_PATHS = "";
 				DEVELOPMENT_TEAM = 977BU9A9H8;
 				ENABLE_PREVIEWS = YES;
@@ -502,7 +506,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = DateIdeasApp/DateIdeasApp.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 4;
+				CURRENT_PROJECT_VERSION = 5;
 				DEVELOPMENT_ASSET_PATHS = "";
 				DEVELOPMENT_TEAM = 977BU9A9H8;
 				ENABLE_PREVIEWS = YES;
@@ -528,7 +532,7 @@
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				CODE_SIGN_ENTITLEMENTS = DateIdeasShareExtension/DateIdeasShareExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 4;
+				CURRENT_PROJECT_VERSION = 5;
 				DEVELOPMENT_TEAM = 977BU9A9H8;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = DateIdeasShareExtension/Info.plist;
@@ -553,7 +557,7 @@
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				CODE_SIGN_ENTITLEMENTS = DateIdeasShareExtension/DateIdeasShareExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 4;
+				CURRENT_PROJECT_VERSION = 5;
 				DEVELOPMENT_TEAM = 977BU9A9H8;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = DateIdeasShareExtension/Info.plist;

@@ -74,11 +74,12 @@ struct AddVisitView: View {
                         Text("Overall")
                         Spacer()
                         Text(review.overallScore.formatted(.number.precision(.fractionLength(1))))
-                            .font(.headline)
+                            .font(.ui(.headline, weight: .semibold))
                     }
                 }
             }
             .keyboardDismissal()
+            .themedScreenBackground()
             .navigationTitle(existingVisit == nil ? "Add Visit" : "Edit Visit")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -264,7 +265,7 @@ struct VisitPhotoStrip: View {
                                         onRemove(name)
                                     } label: {
                                         Image(systemName: "xmark.circle.fill")
-                                            .font(.footnote)
+                                            .font(.ui(.footnote))
                                             .foregroundStyle(.white, .black.opacity(0.55))
                                     }
                                     .buttonStyle(.plain)
@@ -308,6 +309,7 @@ struct VisitDetailView: View {
                     detailsSection
                 }
             }
+            .themedScreenBackground()
             .navigationTitle("Visit")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -344,7 +346,7 @@ struct VisitDetailView: View {
                         .font(.title3.weight(.semibold))
 
                     Text(currentVisit.visitedAt.formatted(date: .long, time: .omitted))
-                        .font(.subheadline)
+                        .font(.ui(.subheadline))
                         .foregroundStyle(.secondary)
                 } else {
                     Text(currentVisit.visitedAt.formatted(date: .long, time: .omitted))
@@ -360,44 +362,77 @@ struct VisitDetailView: View {
     }
 
     private var ratingSection: some View {
-        Section("Rating") {
-            HStack {
-                Text("Overall")
-                    .font(.headline)
+        Section {
+            VStack(spacing: 12) {
+                // Stat cards: dark OVERALL + white SPENT (mockup design).
+                HStack(spacing: 12) {
+                    VStack(spacing: 3) {
+                        SectionLabel("Overall")
+                            .foregroundStyle(.white.opacity(0.65))
 
-                Spacer()
+                        HStack(spacing: 5) {
+                            Image(systemName: "star.fill")
+                                .font(.title3)
+                                .foregroundStyle(Theme.accent)
 
-                Label(
-                    currentVisit.review.overallScore.formatted(.number.precision(.fractionLength(1))),
-                    systemImage: "star.fill"
+                            Text(currentVisit.review.overallScore.formatted(.number.precision(.fractionLength(1))))
+                                .font(.displayHeavy(.title))
+                                .foregroundStyle(.white)
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
+                    .background(Color(light: 0x2B2420, dark: 0x3A322C), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+
+                    if let amountSpent = currentVisit.amountSpent {
+                        VStack(spacing: 3) {
+                            SectionLabel("Spent")
+
+                            Text(amountSpent.formatted(.currency(code: "SGD")))
+                                .font(.displayHeavy(.title2))
+                                .foregroundStyle(Theme.textPrimary)
+                                .minimumScaleFactor(0.6)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                        .background(
+                            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                .fill(Theme.cardBackground)
+                                .shadow(color: Theme.cardShadow, radius: 12, y: 5)
+                        )
+                    }
+                }
+
+                // Factor bars.
+                VStack(spacing: 11) {
+                    FactorBarRow(title: "Food", value: currentVisit.review.food)
+                    FactorBarRow(title: "Ambience", value: currentVisit.review.ambience)
+                    FactorBarRow(title: "Value", value: currentVisit.review.value)
+                    FactorBarRow(title: "Service", value: currentVisit.review.service)
+                    FactorBarRow(title: "Revisit", value: currentVisit.review.revisitPotential)
+                }
+                .padding(14)
+                .background(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .fill(Theme.cardBackground)
+                        .shadow(color: Theme.cardShadow, radius: 12, y: 5)
                 )
-                .font(.title3.weight(.semibold))
-                .foregroundStyle(.yellow)
             }
-
-            RatingDisplayRow(title: "Food", value: currentVisit.review.food)
-            RatingDisplayRow(title: "Ambience", value: currentVisit.review.ambience)
-            RatingDisplayRow(title: "Value", value: currentVisit.review.value)
-            RatingDisplayRow(title: "Service", value: currentVisit.review.service)
-            RatingDisplayRow(title: "Revisit", value: currentVisit.review.revisitPotential)
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
+            .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
         }
     }
 
+    @ViewBuilder
     private var detailsSection: some View {
-        Section("Details") {
-            if let amountSpent = currentVisit.amountSpent {
-                HStack {
-                    Text("Spent")
-
-                    Spacer()
-
-                    Text(amountSpent.formatted(.currency(code: "SGD")))
-                        .foregroundStyle(.secondary)
-                }
-            }
-
-            if !currentVisit.notes.isEmpty {
+        if !currentVisit.notes.isEmpty {
+            Section {
                 Text(currentVisit.notes)
+                    .font(.ui(.subheadline))
+                    .foregroundStyle(Theme.textSecondary)
+            } header: {
+                SectionLabel("Notes")
             }
         }
     }
@@ -407,37 +442,78 @@ struct VisitDetailView: View {
         let localPhotos = currentVisit.localPhotoNames
 
         if !localPhotos.isEmpty {
-            Section("Photos") {
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 100), spacing: 6)], spacing: 6) {
-                    ForEach(localPhotos, id: \.self) { name in
-                        if let url = DateIdeaImageStore.fileURL(for: name),
-                           let image = UIImage(contentsOfFile: url.path) {
-                            Button {
-                                previewPhoto = VisitPhotoPreviewItem(id: name)
-                            } label: {
-                                Color.clear
-                                    .aspectRatio(1, contentMode: .fit)
-                                    .overlay {
-                                        Image(uiImage: image)
-                                            .resizable()
-                                            .scaledToFill()
-                                    }
-                                    .clipShape(RoundedRectangle(cornerRadius: 10))
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityLabel("Visit photo, tap to enlarge")
-                        }
-                    }
-                }
-                .padding(.vertical, 4)
+            Section {
+                photoMosaic(localPhotos)
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
+                    .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
             }
         } else if !currentVisit.photoNames.isEmpty {
-            Section("Photos") {
+            Section {
                 Label("\(currentVisit.photoNames.count) photo\(currentVisit.photoNames.count == 1 ? "" : "s") on your partner's device", systemImage: "photo.on.rectangle")
-                    .font(.footnote)
+                    .font(.ui(.footnote))
                     .foregroundStyle(.secondary)
+            } header: {
+                SectionLabel("Photos")
             }
         }
+    }
+
+    // Mockup mosaic: one large photo, two stacked beside it, "+N" overflow.
+    @ViewBuilder
+    private func photoMosaic(_ names: [String]) -> some View {
+        let height: CGFloat = 190
+
+        HStack(spacing: 8) {
+            mosaicTile(names[0], height: height)
+
+            if names.count > 1 {
+                VStack(spacing: 8) {
+                    mosaicTile(names[1], height: (height - 8) / 2)
+
+                    if names.count > 2 {
+                        mosaicTile(names[2], height: (height - 8) / 2)
+                            .overlay {
+                                if names.count > 3 {
+                                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                        .fill(.black.opacity(0.35))
+
+                                    Text("+\(names.count - 3)")
+                                        .font(.ui(.subheadline, weight: .bold))
+                                        .foregroundStyle(.white)
+                                }
+                            }
+                    }
+                }
+                .frame(width: 110)
+            }
+        }
+        .frame(height: height)
+    }
+
+    private func mosaicTile(_ name: String, height: CGFloat) -> some View {
+        Button {
+            previewPhoto = VisitPhotoPreviewItem(id: name)
+        } label: {
+            Group {
+                if let url = DateIdeaImageStore.fileURL(for: name),
+                   let image = UIImage(contentsOfFile: url.path) {
+                    Color.clear
+                        .overlay {
+                            Image(uiImage: image)
+                                .resizable()
+                                .scaledToFill()
+                        }
+                } else {
+                    Theme.neutralChipBackground
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: height)
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Visit photo, tap to enlarge")
     }
 }
 
@@ -493,7 +569,7 @@ struct VisitParticipantsView: View {
                 }
 
                 Text(summary)
-                    .font(.caption)
+                    .font(.ui(.caption))
                     .foregroundStyle(.secondary)
             }
             .accessibilityElement(children: .ignore)
@@ -561,26 +637,36 @@ struct VisitPhotoFullScreenView: View {
     }
 }
 
-struct RatingDisplayRow: View {
+struct FactorBarRow: View {
     let title: String
     let value: Int
 
     var body: some View {
-        HStack {
+        HStack(spacing: 10) {
             Text(title)
+                .font(.ui(.footnote, weight: .semibold))
+                .foregroundStyle(Theme.textSecondary)
+                .frame(width: 70, alignment: .leading)
 
-            Spacer()
+            GeometryReader { proxy in
+                ZStack(alignment: .leading) {
+                    Capsule()
+                        .fill(Theme.neutralChipBackground)
 
-            HStack(spacing: 2) {
-                ForEach(1...5, id: \.self) { index in
-                    Image(systemName: index <= value ? "star.fill" : "star")
-                        .font(.footnote)
-                        .foregroundStyle(.yellow)
+                    Capsule()
+                        .fill(Theme.accent)
+                        .frame(width: proxy.size.width * CGFloat(value) / 5)
                 }
             }
+            .frame(height: 7)
+
+            Text(Double(value).formatted(.number.precision(.fractionLength(1))))
+                .font(.ui(.caption, weight: .bold))
+                .foregroundStyle(Theme.textPrimary)
+                .frame(width: 26, alignment: .trailing)
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(title): \(value) out of 5 stars")
+        .accessibilityLabel("\(title): \(value) out of 5")
     }
 }
 
@@ -598,7 +684,7 @@ struct RatingRow: View {
                         value = index
                     } label: {
                         Image(systemName: index <= value ? "star.fill" : "star")
-                            .foregroundStyle(.yellow)
+                            .foregroundStyle(Theme.accent)
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("\(title) \(index) stars")

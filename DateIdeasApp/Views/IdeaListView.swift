@@ -11,8 +11,9 @@ struct IdeaListView: View {
         List {
             Section {
                 filterBar
-                    .listRowInsets(EdgeInsets(top: 6, leading: 12, bottom: 6, trailing: 0))
+                    .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 0))
                     .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
             }
 
             Section {
@@ -26,11 +27,23 @@ struct IdeaListView: View {
                             store.filter = IdeaFilter()
                         }
                     }
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
                 } else {
+                    // Floating white cards on the paper background.
                     ForEach(visibleIdeas) { idea in
                         NavigationLink(value: idea.id) {
                             IdeaRowView(idea: idea)
                         }
+                        .listRowSeparator(.hidden)
+                        .listRowInsets(EdgeInsets(top: 14, leading: 28, bottom: 14, trailing: 24))
+                        .listRowBackground(
+                            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                .fill(Theme.cardBackground)
+                                .shadow(color: Theme.cardShadow, radius: 16, y: 8)
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 5)
+                        )
                     }
                     .onDelete { offsets in
                         store.deleteIdeas(at: offsets, from: visibleIdeas)
@@ -38,6 +51,8 @@ struct IdeaListView: View {
                 }
             }
         }
+        .listStyle(.plain)
+        .themedScreenBackground()
         .sheet(isPresented: $showingFilters) {
             FilterSheetView(filter: store.filter, sortOrder: store.sortOrder)
                 .presentationDetents([.medium, .large])
@@ -60,14 +75,14 @@ struct IdeaListView: View {
                 } label: {
                     HStack(spacing: 6) {
                         Image(systemName: "line.3.horizontal.decrease")
-                            .font(.subheadline.weight(.semibold))
+                            .font(.ui(.subheadline, weight: .semibold))
 
                         Text("Filters")
-                            .font(.subheadline.weight(.semibold))
+                            .font(.ui(.subheadline, weight: .semibold))
 
                         if store.filter.activeCount > 0 {
                             Text("\(store.filter.activeCount)")
-                                .font(.caption2.weight(.bold))
+                                .font(.ui(.caption2, weight: .bold))
                                 .foregroundStyle(Theme.accent)
                                 .padding(.horizontal, 6)
                                 .padding(.vertical, 2)
@@ -135,16 +150,16 @@ struct ActiveFilterChip: View {
             HStack(spacing: 5) {
                 if let systemImage {
                     Image(systemName: systemImage)
-                        .font(.caption.weight(.medium))
+                        .font(.ui(.caption, weight: .medium))
                         .foregroundStyle(.secondary)
                 }
 
                 Text(title)
-                    .font(.subheadline.weight(.medium))
+                    .font(.ui(.subheadline, weight: .medium))
                     .lineLimit(1)
 
                 Image(systemName: "xmark")
-                    .font(.caption2.weight(.semibold))
+                    .font(.ui(.caption2, weight: .semibold))
                     .foregroundStyle(.secondary)
             }
             .padding(.horizontal, 12)
@@ -167,7 +182,7 @@ struct FilterChip: View {
     var body: some View {
         Button(action: action) {
             Text(title)
-                .font(.subheadline.weight(isSelected ? .semibold : .medium))
+                .font(.ui(.subheadline, weight: isSelected ? .semibold : .medium))
                 .lineLimit(1)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 7)
@@ -215,34 +230,27 @@ struct IdeaRowView: View {
                     .lineLimit(2)
 
                 Text(idea.location.address)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .font(.ui(.footnote))
+                    .foregroundStyle(Theme.textTertiary)
                     .lineLimit(1)
 
                 if let countdownText = idea.nextDealCountdownText {
                     Label(countdownText, systemImage: "clock")
-                        .font(.caption.weight(.medium))
-                        .foregroundStyle(.orange)
+                        .font(.ui(.caption, weight: .medium))
+                        .foregroundStyle(Theme.endingSoon)
                 } else if idea.activeDeals.contains(where: { $0.status == .needsConfirmation }) {
                     Label("Confirm deal", systemImage: "exclamationmark.triangle")
-                        .font(.caption.weight(.medium))
-                        .foregroundStyle(.orange)
+                        .font(.ui(.caption, weight: .medium))
+                        .foregroundStyle(Theme.endingSoon)
                 }
 
-                HStack {
-                    Text(idea.category.rawValue)
-                        .font(.caption.weight(.semibold))
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(Color(.tertiarySystemGroupedBackground))
-                        .clipShape(Capsule())
-
-                    ForEach(idea.displayTagTitles.prefix(2), id: \.self) { tag in
-                        Text(tag)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                HStack(spacing: 5) {
+                    ForEach(Array(idea.displayTagTitles.prefix(2).enumerated()), id: \.element) { index, tag in
+                        TagPill(title: tag, prominent: index == 0)
                             .lineLimit(1)
                     }
+
+                    TagPill(title: idea.category.rawValue, prominent: false)
 
                     Spacer(minLength: 0)
                 }
@@ -252,14 +260,20 @@ struct IdeaRowView: View {
             // visited tick stay aligned.
             VStack(alignment: .trailing, spacing: 8) {
                 if let score = idea.latestReview(for: collaborationStore.currentUser?.id)?.overallScore {
-                    Label(score.formatted(.number.precision(.fractionLength(1))), systemImage: "star.fill")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.yellow)
+                    HStack(spacing: 3) {
+                        Image(systemName: "star.fill")
+                            .font(.ui(.caption2))
+                            .foregroundStyle(Theme.accent)
+
+                        Text(score.formatted(.number.precision(.fractionLength(1))))
+                            .font(.ui(.caption, weight: .bold))
+                            .foregroundStyle(Theme.textPrimary)
+                    }
                 }
 
                 if idea.hasBeenVisited(by: collaborationStore.currentUser?.id) {
                     Image(systemName: "checkmark.circle.fill")
-                        .foregroundStyle(.green)
+                        .foregroundStyle(Theme.visited)
                         .accessibilityLabel("Visited")
                 }
             }

@@ -36,7 +36,7 @@ struct FilterSheetView: View {
                 .padding(.top, 12)
                 .padding(.bottom, 8)
             }
-            .background(Color(.systemGroupedBackground))
+            .background(Theme.background)
             .navigationTitle("Sort & Filter")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -81,7 +81,7 @@ struct FilterSheetView: View {
 
             if sortOrder == .nearMe && store.locationDenied {
                 Label("Allow location access in Settings to sort by distance.", systemImage: "location.slash")
-                    .font(.footnote)
+                    .font(.ui(.footnote))
                     .foregroundStyle(.secondary)
             }
         }
@@ -167,8 +167,7 @@ struct FilterSheetView: View {
     }
 
     private func sectionTitle(_ title: String) -> some View {
-        Text(title)
-            .font(.headline)
+        SectionLabel(title)
     }
 
     // MARK: Actions
